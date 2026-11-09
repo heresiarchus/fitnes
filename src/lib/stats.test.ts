@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { monthDates, weekDates } from "./date";
-import { lastStrengthFor, periodStats, rollingAvg, walkTarget, weightSeries } from "./stats";
+import { lastStrengthFor, previousBp, previousWeight, previousWorkout, periodStats, rollingAvg, walkTarget, weightSeries } from "./stats";
 import type { DaysMap } from "./types";
 
 const u = "2026-01-01T00:00:00.000Z";
@@ -73,5 +73,14 @@ describe("lastStrengthFor", () => {
   it("finds the previous session of an exercise", () => {
     expect(lastStrengthFor(days, "chair", "2026-11-12")?.reps).toBe(15);
     expect(lastStrengthFor(days, "chair", "2026-11-10")).toBeNull();
+  });
+});
+
+describe("previous values for prefill", () => {
+  it("finds the latest earlier weight, workout and blood pressure", () => {
+    expect(previousWeight(days, "2026-11-12")).toEqual({ date: "2026-11-11", weight: 137 });
+    expect(previousWeight(days, "2026-11-10")).toBeNull();
+    expect(previousWorkout(days, "2026-11-13")?.date).toBe("2026-11-10");
+    expect(previousBp(days, "2026-11-13")).toBeNull();
   });
 });

@@ -38,6 +38,8 @@ export interface DayEntry {
   flags?: Flag[];
   note?: string;
   updatedAt: string;
+  /** Tombstone: the day was deleted (kept so the deletion syncs to other devices). */
+  deleted?: true;
 }
 
 export interface Settings {
@@ -48,6 +50,16 @@ export interface Settings {
   stepGoal: number | null;
   lang: Lang;
   theme: Theme;
+  updatedAt: string;
+}
+
+export interface SyncConfig {
+  provider: "github";
+  /** "owner/name" of a private repository. */
+  repo: string;
+  token: string;
+  path: string;
+  lastSyncAt?: string;
 }
 
 export type DaysMap = Record<string, DayEntry>;

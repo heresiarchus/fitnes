@@ -12,6 +12,7 @@ describe("day form conversion", () => {
   it("parses comma decimals, defaults sets and clamps pain", () => {
     const f = toFormState(undefined, "light");
     f.weight = "136,2";
+    f.weightConfirmed = true;
     f.ex.chair = { sets: "", reps: "15", kg: "" };
     f.ex.bridge = { sets: "2", reps: "", kg: "5" }; // no reps → skipped
     f.custom = [{ key: 1, name: " Планка ", sets: "1", reps: "3", kg: "" }, { key: 2, name: "", sets: "1", reps: "5", kg: "" }];
@@ -24,6 +25,16 @@ describe("day form conversion", () => {
     expect(d.pain).toEqual({ back: 10 });
     expect(d.flags).toEqual(["chest", "foot"]);
     expect(d.updatedAt).toBe(now.toISOString());
+  });
+
+  it("does not save a weight that was only prefilled", () => {
+    const f = toFormState(undefined, "light", 130.5);
+    expect(f.weight).toBe("130.5");
+    expect(f.weightConfirmed).toBe(false);
+    f.steps = "100";
+    expect(fromFormState("2026-11-11", f, now)?.weight).toBeUndefined();
+    f.weightConfirmed = true;
+    expect(fromFormState("2026-11-11", f, now)?.weight).toBe(130.5);
   });
 
   it("round-trips an entry", () => {

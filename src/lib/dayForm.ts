@@ -9,6 +9,11 @@ export interface BpRow { sys: string; dia: string; pulse: string }
 /** Raw (string) state of the day form, mirrors the inputs one to one. */
 export interface DayFormState {
   weight: string;
+  /**
+   * False while the weight is only prefilled from the previous entry: it is shown on the
+   * drum but not saved until the user turns the drum or confirms it.
+   */
+  weightConfirmed: boolean;
   weightCond: WeightCond;
   steps: string;
   walk: string;
@@ -26,7 +31,7 @@ export interface DayFormState {
 const s = (v: number | null | undefined) => (v == null ? "" : String(v));
 const emptySet = (): SetRow => ({ sets: "", reps: "", kg: "" });
 
-export function toFormState(d: DayEntry | undefined, defaultWalk: WalkIntensity): DayFormState {
+export function toFormState(d: DayEntry | undefined, defaultWalk: WalkIntensity, prevWeight: number | null = null): DayFormState {
   const ex: Record<string, SetRow> = {};
   for (const id of EXERCISES) ex[id] = emptySet();
   const custom: CustomRow[] = [];
@@ -43,7 +48,8 @@ export function toFormState(d: DayEntry | undefined, defaultWalk: WalkIntensity)
   const pain = {} as Record<PainArea, string>;
   for (const a of PAIN_AREAS) pain[a] = s(d?.pain?.[a]);
   return {
-    weight: s(d?.weight),
+    weight: d?.weight != null ? s(d.weight) : s(prevWeight),
+    weightConfirmed: d?.weight != null,
     weightCond: d?.weightCond ?? "morning",
     steps: s(d?.steps),
     walk: s(d?.walkMin),
@@ -73,7 +79,7 @@ function setItem(row: SetRow): Omit<StrengthItem, "id" | "name"> | null {
 export function fromFormState(date: string, f: DayFormState, now = new Date()): DayEntry | null {
   const out: DayEntry = { date, updatedAt: now.toISOString() };
   const w = num(f.weight);
-  if (w != null && w > 0) { out.weight = w; out.weightCond = f.weightCond; }
+  if (f.weightConfirmed && w != null && w > 0) { out.weight = w; out.weightCond = f.weightCond; }
   const steps = num(f.steps);
   if (steps != null && steps >= 0) out.steps = Math.round(steps);
   const walk = num(f.walk);

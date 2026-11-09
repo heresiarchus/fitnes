@@ -111,3 +111,22 @@ export function lastStrengthFor(days: DaysMap, exId: string, before: string) {
   }
   return null;
 }
+
+/** Latest recorded weight strictly before `before` (any time of day), with its date. */
+export function previousWeight(days: DaysMap, before: string): { date: string; weight: number } | null {
+  const dates = Object.keys(days).filter((d) => d < before && days[d].weight != null).sort();
+  const d = dates[dates.length - 1];
+  return d ? { date: d, weight: days[d].weight! } : null;
+}
+
+/** Latest day before `before` that has a strength session. */
+export function previousWorkout(days: DaysMap, before: string): DayEntry | null {
+  const dates = Object.keys(days).filter((d) => d < before && days[d].strength?.length).sort();
+  return dates.length ? days[dates[dates.length - 1]] : null;
+}
+
+/** Latest blood-pressure readings before `before`, per slot (falls back to any slot). */
+export function previousBp(days: DaysMap, before: string): DayEntry["bp"] | null {
+  const dates = Object.keys(days).filter((d) => d < before && days[d].bp).sort();
+  return dates.length ? days[dates[dates.length - 1]].bp! : null;
+}
