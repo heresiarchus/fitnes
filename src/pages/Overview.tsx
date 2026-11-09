@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { SyncBadge } from "../components/SyncBadge";
 import { StatGrid } from "../components/StatGrid";
 import { StepsChart } from "../components/StepsChart";
 import { WeightChart } from "../components/WeightChart";
@@ -23,6 +24,7 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
       <header className="page-head">
         <h1>{t("app.title")}</h1>
         <p className="sub">{t("overview.intro")}</p>
+        <SyncBadge />
         <div className="row" style={{ marginTop: 12 }}>
           <Link className="btn primary" to="/log">{t("overview.logToday")}</Link>
         </div>
