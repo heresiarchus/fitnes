@@ -9,11 +9,13 @@ import { PeriodNav } from "../components/PeriodNav";
 import { updateSettings } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import { addDays, ddmm, iso, rangeDates, weekDates } from "../lib/date";
+import { fmt, fmtInt } from "../lib/format";
 import { periodStats } from "../lib/stats";
 import type { DaysMap, Phase, Settings } from "../lib/types";
 
 export function Overview({ days, settings }: { days: DaysMap; settings: Settings }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const td = days[iso(new Date())];
   const [offset, setOffset] = useState(0);
   const dates = weekDates(offset);
   const prev = weekDates(offset - 1);
@@ -25,8 +27,21 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
       <header className="page-head">
         <h1>{t("app.title")}</h1>
         <SyncBadge />
-        <Link className="btn primary block" to="/log">{t("overview.logToday")}</Link>
       </header>
+
+      <section className="today" aria-label={t("today.title")}>
+        <div>
+          <h2>{t("today.title")}</h2>
+          <span className="today-date">{new Date().toLocaleDateString(lang === "uk" ? "uk-UA" : "en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
+        </div>
+        <ul className="today-items">
+          <li><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmt(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></li>
+          <li><span>{t("cal.day.steps")}</span><b>{td?.steps != null ? fmtInt(td.steps, lang) : t("today.none")}</b></li>
+          <li><span>{t("cal.day.walk")}</span><b>{td?.walkMin ? `${td.walkMin} ${t("common.min")}` : t("today.none")}</b></li>
+          <li><span>{t("form.feeling")}</span><b>{td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></li>
+        </ul>
+        <Link className="btn block" to="/log">{td ? t("today.more") : t("today.fill")}</Link>
+      </section>
 
       <section className="block" aria-label={t("week.title")}>
         <PeriodNav
