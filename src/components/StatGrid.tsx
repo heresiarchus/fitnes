@@ -28,12 +28,15 @@ export function StatGrid({ days, dates, prevDates, settings, weekly }: Props) {
         <span className="label">{t("stat.weight")}</span>
         <span className="big">{fmt(s.avgWeight, lang)}</span>
         <span className="meta">
-          {dW == null ? t("stat.weightNoPrev") : (
-            <span className={dW <= 0 ? "delta-down" : "delta-up"}>
-              {t("stat.weightDelta", { d: (dW > 0 ? "+" : dW < 0 ? "−" : "±") + fmt(Math.abs(dW), lang) })}
-            </span>
+          {dW != null && (
+            <>
+              <span className={dW <= 0 ? "delta-down" : "delta-up"}>
+                {t("stat.weightDelta", { d: (dW > 0 ? "+" : dW < 0 ? "−" : "±") + fmt(Math.abs(dW), lang) })}
+              </span>
+              {" · "}
+            </>
           )}
-          {" · "}{t("stat.weighIns", { n: s.weights.length })}
+          {t("stat.weighIns", { n: s.weights.length })}
           {!weekly && s.weights.length > 1 && <> · {t("stat.weightRange", { min: fmt(s.minWeight, lang), max: fmt(s.maxWeight, lang) })}</>}
         </span>
       </div>

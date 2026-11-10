@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
+import { Head } from "../components/Head";
 import { PeriodNav } from "../components/PeriodNav";
 import { Stepper } from "../components/Stepper";
 import { saveDay } from "../db";
@@ -68,7 +69,7 @@ export function CalendarPage({ days, settings }: { days: DaysMap; settings: Sett
     <>
       <header className="page-head">
         <h1>{t("cal.title")}</h1>
-        <div className="seg" role="tablist">
+        <div className="seg full" role="tablist">
           {(["calendar", "list"] as const).map((v) => (
             <button key={v} type="button" role="tab" aria-selected={view === v} className={view === v ? "on" : ""} onClick={() => setView(v)}>{t(`cal.view.${v}` as MessageKey)}</button>
           ))}
@@ -80,7 +81,7 @@ export function CalendarPage({ days, settings }: { days: DaysMap; settings: Sett
           <section className="block">
             <PeriodNav label={monthName(dates[0], lang)} offset={offset} onChange={changeMonth}
               prevLabel={t("common.prev")} nextLabel={t("common.next")} nowLabel={t("common.current")} />
-            <div className="seg" role="tablist">
+            <div className="seg full" role="tablist">
               {MODES.map((m) => (
                 <button key={m} type="button" role="tab" aria-selected={mode === m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{t(`cal.mode.${m}` as MessageKey)}</button>
               ))}
@@ -97,7 +98,7 @@ export function CalendarPage({ days, settings }: { days: DaysMap; settings: Sett
                 </button>
               ))}
             </div>
-            <p className="status" style={{ margin: 0 }}>{t(`cal.legend.${mode}` as MessageKey, mark)}</p>
+            <Head as="label" title={<span className="status">{t(`cal.mode.${mode}` as MessageKey)}</span>} help={t(`cal.legend.${mode}` as MessageKey, mark)} />
             {mode === "bp" && (
               <p className="status" style={{ margin: 0 }}>
                 <b>{t("cal.bpMonth")}:</b> {t("cal.morning")} <span className={"num" + (bpIsHigh(bpMonth.morning, mark) ? " high" : "")}>{bpText(bpMonth.morning)}</span>
@@ -138,9 +139,9 @@ function BpQuickAdd({ date, today, days }: { date: string; today: string; days: 
 
   return (
     <section className="block">
-      <div className="row between">
-        <h2>{t("cal.bpAddFor", { d: ddmm(date) })}</h2>
-        <div className="seg" role="radiogroup">
+      <Head title={t("cal.bpAddFor", { d: ddmm(date) })} help={t("form.bpHint")} />
+      <div>
+        <div className="seg full" role="radiogroup">
           {(["am", "pm"] as const).map((p) => (
             <button key={p} type="button" role="radio" aria-checked={part === p} className={part === p ? "on" : ""} onClick={() => setPart(p)}>{t(p === "am" ? "cal.morning" : "cal.evening")}</button>
           ))}
@@ -153,11 +154,8 @@ function BpQuickAdd({ date, today, days }: { date: string; today: string; days: 
             <div><span>{t("form.bpDia")}</span><Stepper value={dia} onChange={setDia} step={1} min={30} max={180} start={last?.dia ?? 80} label={t("form.bpDia")} /></div>
             <div><span>{t("form.bpPulse")}</span><Stepper value={pulse} onChange={setPulse} step={1} min={30} max={220} start={last?.pulse ?? 70} label={t("form.bpPulse")} /></div>
           </div>
-          <div className="row">
-            <button type="button" className="primary" onClick={add}>{t("cal.bpAdd")}</button>
-            {msg.text && <span className={"status " + (msg.kind ?? "")} role="status">{msg.text}</span>}
-          </div>
-          <p className="status" style={{ margin: 0 }}>{t("form.bpHint")}</p>
+          <div className="actions"><button type="button" className="primary" onClick={add}>{t("cal.bpAdd")}</button></div>
+          {msg.text && <span className={"status " + (msg.kind ?? "")} role="status">{msg.text}</span>}
         </>
       ) : (
         <p className="status" style={{ margin: 0 }}>{msg.kind === "ok" ? msg.text + " " : ""}{t("cal.bpSlotsFull")}</p>
@@ -190,13 +188,11 @@ function DayDetail({ date, day, settings }: { date: string; day: DayEntry | unde
   }
   return (
     <section className="block">
-      <div className="row between">
-        <h2 className="num-h">{ddmm(date)}.{date.slice(0, 4)}</h2>
-        <Link className="btn" to={`/log?date=${date}`}>{day ? t("cal.openDay") : t("cal.addEntry")}</Link>
-      </div>
+      <Head title={<span className="num-h">{ddmm(date)}.{date.slice(0, 4)}</span>} />
       {rows.length ? (
         <dl className="detail">{rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       ) : <p className="empty">{t("cal.noEntry")}</p>}
+      <Link className="btn block" to={`/log?date=${date}`}>{day ? t("cal.openDay") : t("cal.addEntry")}</Link>
     </section>
   );
 }

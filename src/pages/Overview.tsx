@@ -4,15 +4,18 @@ import { SyncBadge } from "../components/SyncBadge";
 import { StatGrid } from "../components/StatGrid";
 import { StepsChart } from "../components/StepsChart";
 import { WeightChart } from "../components/WeightChart";
+import { Head } from "../components/Head";
 import { PeriodNav } from "../components/PeriodNav";
 import { updateSettings } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import { addDays, ddmm, iso, rangeDates, weekDates } from "../lib/date";
+import { fmt, fmtInt } from "../lib/format";
 import { periodStats } from "../lib/stats";
 import type { DaysMap, Phase, Settings } from "../lib/types";
 
 export function Overview({ days, settings }: { days: DaysMap; settings: Settings }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const td = days[iso(new Date())];
   const [offset, setOffset] = useState(0);
   const dates = weekDates(offset);
   const prev = weekDates(offset - 1);
@@ -23,12 +26,22 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
     <>
       <header className="page-head">
         <h1>{t("app.title")}</h1>
-        <p className="sub">{t("overview.intro")}</p>
         <SyncBadge />
-        <div className="row" style={{ marginTop: 12 }}>
-          <Link className="btn primary" to="/log">{t("overview.logToday")}</Link>
-        </div>
       </header>
+
+      <section className="today" aria-label={t("today.title")}>
+        <div>
+          <h2>{t("today.title")}</h2>
+          <span className="today-date">{new Date().toLocaleDateString(lang === "uk" ? "uk-UA" : "en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
+        </div>
+        <ul className="today-items">
+          <li><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmt(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></li>
+          <li><span>{t("cal.day.steps")}</span><b>{td?.steps != null ? fmtInt(td.steps, lang) : t("today.none")}</b></li>
+          <li><span>{t("cal.day.walk")}</span><b>{td?.walkMin ? `${td.walkMin} ${t("common.min")}` : t("today.none")}</b></li>
+          <li><span>{t("form.feeling")}</span><b>{td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></li>
+        </ul>
+        <Link className="btn block" to="/log">{td ? t("today.more") : t("today.fill")}</Link>
+      </section>
 
       <section className="block" aria-label={t("week.title")}>
         <PeriodNav
@@ -37,13 +50,12 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
           prevLabel={t("week.prev")} nextLabel={t("week.next")} nowLabel={t("week.now")}
         />
         <div className="phase">
-          <label className="field inline">
-            <span>{t("phase.label")}</span>
-            <select value={settings.phase} onChange={(e) => updateSettings({ phase: e.target.value as Phase })}>
+          <div className="field">
+            <Head as="label" title={t("phase.label")} help={t(`phase.${settings.phase}.note` as MessageKey)} />
+            <select aria-label={t("phase.label")} value={settings.phase} onChange={(e) => updateSettings({ phase: e.target.value as Phase })}>
               {(["1", "2", "3"] as const).map((p) => <option key={p} value={p}>{t(`phase.${p}` as MessageKey)}</option>)}
             </select>
-          </label>
-          <span className="phase-note">{t(`phase.${settings.phase}.note` as MessageKey)}</span>
+          </div>
         </div>
         <StatGrid days={days} dates={dates} prevDates={prev} settings={settings} weekly />
         {flags.length > 0 && (
@@ -55,18 +67,12 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
       </section>
 
       <section className="block">
-        <div className="row between">
-          <h2>{t("chart.weight")}</h2>
-          <span className="status">{t("chart.weightLegend")}</span>
-        </div>
+        <Head title={t("chart.weight")} help={t("chart.weightLegend")} />
         <WeightChart days={days} dates={chartDates} />
       </section>
 
       <section className="block">
-        <div className="row between">
-          <h2>{t("chart.steps")}</h2>
-          {settings.stepGoal != null && <span className="status">{t("chart.stepsLegend")}</span>}
-        </div>
+        <Head title={t("chart.steps")} help={settings.stepGoal != null ? t("chart.stepsLegend") : undefined} />
         <StepsChart days={days} dates={dates} goal={settings.stepGoal} />
       </section>
     </>

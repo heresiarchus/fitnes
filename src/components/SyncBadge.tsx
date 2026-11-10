@@ -27,8 +27,10 @@ export function SyncBadge({ detailed = false }: { detailed?: boolean }) {
   const body = (
     <span className={"sync-badge status " + cls} role="status">
       <i className={"dot " + s.state} aria-hidden="true" />
-      {text}
-      {pending > 0 && s.state !== "syncing" && <> · {t("sync.pending", { n: pending })}</>}
+      <span>
+        {text}
+        {pending > 0 && s.state !== "syncing" && <> · {t("sync.pending", { n: pending })}</>}
+      </span>
     </span>
   );
   if (!detailed && (s.state === "off" || s.state === "error")) return <Link to="/settings" className="sync-link">{body}</Link>;

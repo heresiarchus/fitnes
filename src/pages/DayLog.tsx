@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChipScale } from "../components/ChipScale";
 import { SyncBadge } from "../components/SyncBadge";
+import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { WeightPicker } from "../components/WeightPicker";
 import { deleteDay, saveDay } from "../db";
@@ -83,6 +84,10 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
   const [checked, setChecked] = useState(false);
   const missing = checked ? missingRequired(f) : [];
 
+  const [openEx, setOpenEx] = useState<string | null>(null);
+  /** "2×15 · 7,5 кг" */
+  const summary = (sets: string, reps: string, kg: string) =>
+    reps ? `${sets || 1}×${reps}${kg ? ` · ${lang === "uk" ? kg.replace(".", ",") : kg} ${t("common.kg")}` : ""}` : "";
   const heart = HEART_FLAGS.some((x) => f.flags.includes(x));
   const foot = f.flags.includes("foot");
 
@@ -140,18 +145,18 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
 
   return (
     <section className="block">
-      <div className="row between">
-        <h2>{t("form.title")}</h2>
-        <div className="datenav">
-          <button type="button" aria-label={t("form.prevDay")} onClick={() => shift(-1)}>‹</button>
+      <Head title={t("form.title")} help={t("help.save")} />
+      <div className="pnav">
+        <button type="button" aria-label={t("form.prevDay")} onClick={() => shift(-1)}>‹</button>
+        <div className="pnav-mid">
           <input type="date" aria-label={t("form.date")} value={date} max={today} onChange={(e) => e.target.value && onDate(e.target.value)} />
-          <button type="button" aria-label={t("form.nextDay")} onClick={() => shift(1)} disabled={date >= today}>›</button>
           {date !== today && <button type="button" className="link" onClick={() => onDate(today)}>{t("form.today")}</button>}
         </div>
+        <button type="button" aria-label={t("form.nextDay")} onClick={() => shift(1)} disabled={date >= today}>›</button>
       </div>
       <form onSubmit={onSubmit} noValidate>
         <fieldset ref={weightRef} className={missing.includes("weight") ? "need" : ""}>
-          <legend>{t("form.weight")} <span className="req">{t("form.required")}</span></legend>
+          <Head as="legend" title={<>{t("form.weight")}<span className="req">{t("form.required")}</span></>} help={t("help.weight")} />
           <div className={"weight-box" + (f.weightChoice === "yes" ? "" : " pending")}>
             <WeightPicker value={f.weight} onChange={(v) => setF((p) => ({ ...p, weight: v, weightChoice: "yes" }))} />
             <div className="weight-side">
@@ -170,7 +175,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
               {f.weightChoice === "pending" && (
                 <>
                   <span className="status">{prevW ? t("form.weightPrefill", { d: ddmm(prevW.date) }) : t("form.weightFirst")}</span>
-                  <div className="row">
+                  <div className="actions">
                     {prevW && <button type="button" className="primary" onClick={() => setF((p) => ({ ...p, weight: p.weight || String(prevW.weight), weightChoice: "yes" }))}>{t("form.weightSame")} {fmt(num(f.weight) ?? prevW.weight, lang)}</button>}
                     <button type="button" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
                   </div>
@@ -188,13 +193,12 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
         </fieldset>
 
         <fieldset>
-          <legend>{t("form.steps")}{settings.sources.steps && <span className="src-tag">{t("form.fromSamsung")}</span>}</legend>
-          <Stepper value={f.steps} onChange={(v) => set("steps", v)} step={500} max={100000} label={t("form.steps")} className="wide" />
-          {settings.sources.steps && <p className="status" style={{ margin: 0 }}>{t("form.stepsHint")}</p>}
+          <Head as="legend" title={<>{t("form.steps")}{settings.sources.steps && <span className="src-tag">{t("form.fromSamsung")}</span>}</>} help={settings.sources.steps ? t("form.stepsHint") : undefined} />
+          <Stepper value={f.steps} onChange={(v) => set("steps", v)} step={500} max={100000} label={t("form.steps")} />
         </fieldset>
 
         <fieldset>
-          <legend>{t("form.cardioBlock")}{settings.sources.exercise && <span className="src-tag">{t("form.fromSamsung")}</span>}</legend>
+          <Head as="legend" title={<>{t("form.cardioBlock")}{settings.sources.exercise && <span className="src-tag">{t("form.fromSamsung")}</span>}</>} />
           <div className="fields">
             <div className="field"><span>{t("form.walk")}</span>
               <Stepper value={f.walk} onChange={(v) => set("walk", v)} step={5} max={600} label={t("form.walk")} />
@@ -206,7 +210,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
               </select>
             </label>
           </div>
-          <ChipScale value={f.walk} onChange={(v) => set("walk", v)} values={WALK_QUICK} label={t("form.walk")} suffix={" " + t("common.min")} />
+          <ChipScale value={f.walk} onChange={(v) => set("walk", v)} values={WALK_QUICK} label={t("form.walk")} />
           <div className="fields">
             <label className="field"><span>{t("form.cardioType")}</span>
               <select value={cardioKind} onChange={(e) => pickCardio(e.target.value)}>
@@ -229,10 +233,9 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
         </fieldset>
 
         <fieldset>
-          <legend>{t("form.strength")}</legend>
-          <p className="status" style={{ margin: 0 }}>{t("form.strengthHint")}</p>
+          <Head as="legend" title={t("form.strength")} help={t("form.strengthHint")} />
           {lastWorkout && (
-            <div className="row"><button type="button" onClick={repeatWorkout}>↻ {t("form.repeatWorkout", { d: ddmm(lastWorkout.date) })}</button></div>
+            <div className="actions"><button type="button" onClick={repeatWorkout}>↻ {t("form.repeatWorkout", { d: ddmm(lastWorkout.date) })}</button></div>
           )}
           <div className="ex-list">
             {EXERCISES.map((id) => {
@@ -240,19 +243,24 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
               const hint = t(`ex.${id}.hint` as MessageKey);
               const last = lastStrengthFor(days, id, date);
               const row = f.ex[id];
+              const now = summary(row.sets, row.reps, row.kg);
+              const before = last ? summary(String(last.sets), String(last.reps), last.kg == null ? "" : String(last.kg)) : "";
               return (
-                <div className={"ex-card" + (row.reps ? " done" : "")} key={id}>
-                  <div className="ex-name"><b>{name}</b>{hint && <small>{hint}</small>}</div>
+                <details className={"ex-card" + (row.reps ? " done" : "")} key={id} open={openEx === id} onToggle={(e) => { const o = (e.target as HTMLDetailsElement).open; setOpenEx((cur) => (o ? id : cur === id ? null : cur)); }}>
+                  <summary>
+                    <span className="ex-name"><b>{name}</b>{hint && <small>{hint}</small>}</span>
+                    <span className={"ex-sum" + (now ? " set" : "")}>{now || before || "+"}</span>
+                  </summary>
                   <div className="ex-steps">
                     <div><span>{t("form.sets")}</span><Stepper value={row.sets} onChange={(v) => setEx(id, "sets", v)} step={1} max={10} start={last?.sets} label={`${name}: ${t("form.sets")}`} /></div>
                     <div><span>{t("form.reps")}</span><Stepper value={row.reps} onChange={(v) => setEx(id, "reps", v)} step={1} max={200} start={last?.reps} label={`${name}: ${t("form.reps")}`} /></div>
                     <div><span>{t("form.kg")}</span><Stepper value={row.kg} onChange={(v) => setEx(id, "kg", v)} step={0.5} max={200} decimals={1} inputMode="decimal" start={last?.kg} label={`${name}: ${t("form.kg")}`} /></div>
                   </div>
-                </div>
+                </details>
               );
             })}
             {f.custom.map((c, i) => (
-              <div className={"ex-card" + (c.reps ? " done" : "")} key={c.key}>
+              <div className={"ex-card custom" + (c.reps ? " done" : "")} key={c.key}>
                 <div className="ex-name"><input type="text" maxLength={60} placeholder={t("form.customName")} aria-label={t("form.customName")} value={c.name} onChange={(e) => setCustom(i, "name", e.target.value)} /></div>
                 <div className="ex-steps">
                   <div><span>{t("form.sets")}</span><Stepper value={c.sets} onChange={(v) => setCustom(i, "sets", v)} step={1} max={10} label={t("form.sets")} /></div>
@@ -268,8 +276,8 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
         </fieldset>
 
         <fieldset ref={feelingRef} className={missing.includes("feeling") ? "need" : ""}>
-          <legend>{t("form.feeling")} <span className="req">{t("form.required")}</span></legend>
-          <div className="row">
+          <Head as="legend" title={<>{t("form.feeling")}<span className="req">{t("form.required")}</span></>} />
+          <div className="actions">
             <button type="button" className={f.ok && !f.flags.length ? "primary" : ""} aria-pressed={f.ok && !f.flags.length} onClick={allOk}>✓ {t("form.allOk")}</button>
           </div>
           {PAIN_AREAS.map((a) => (
@@ -307,7 +315,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
               );
             })}
           </div>
-          <p className="status" style={{ margin: "6px 0 0" }}>{t("form.bpHint")}</p>
+          <p className="help-text" style={{ marginTop: 8 }}>{t("form.bpHint")}</p>
         </details>
 
         <label className="field"><span>{t("form.note")}</span>
@@ -319,7 +327,6 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
           {entry && <button type="button" className="danger" onClick={onDelete}>{t("common.delete")}</button>}
           <span className={"status" + (status.kind ? " " + status.kind : "")} role="status">{status.text}</span>
         </div>
-        <p className="status" style={{ margin: 0 }}>{t("form.saveHint")}</p>
         <SyncBadge />
       </form>
     </section>

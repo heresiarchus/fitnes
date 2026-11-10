@@ -3,7 +3,7 @@ import { ddmm } from "../lib/date";
 import { fmtInt } from "../lib/format";
 import type { DaysMap } from "../lib/types";
 
-const W = 700, H = 200, L = 52, R = 12, T = 12, B = 28;
+const W = 700, H = 200, L = 52, R = 24, T = 12, B = 28;
 
 export function StepsChart({ days, dates, goal }: { days: DaysMap; dates: string[]; goal: number | null }) {
   const { t, lang } = useI18n();
