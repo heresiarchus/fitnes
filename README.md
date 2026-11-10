@@ -68,3 +68,9 @@ npm run preview  # перегляд збірки
 - `src/db.ts` — схема IndexedDB і хуки `useDays` / `useSettings`.
 
 `base: "./"` і HashRouter — збірку можна викласти на будь-який статичний хостинг (GitHub Pages тощо).
+
+## Публікація
+
+Кожен push у `main` збирає застосунок і викладає його на GitHub Pages
+(`.github/workflows/deploy.yml`): <https://heresiarchus.github.io/fitnes/>.
+Одноразово: Settings → Pages → Source: **GitHub Actions**.
