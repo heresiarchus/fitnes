@@ -15,7 +15,6 @@ export function History({ days }: { days: DaysMap }) {
 
   return (
     <section className="block">
-      <h2>{t("history.title")}</h2>
       {!dates.length ? (
         <p className="empty">{t("history.empty")}</p>
       ) : (

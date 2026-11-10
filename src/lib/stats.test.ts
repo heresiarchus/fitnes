@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { monthDates, weekDates } from "./date";
-import { lastStrengthFor, previousBp, previousWeight, previousWorkout, periodStats, rollingAvg, walkTarget, weightSeries } from "./stats";
+import { bpIsHigh, bpPeriod, bpSummary, nextBpSlot, lastStrengthFor, previousBp, previousWeight, previousWorkout, periodStats, rollingAvg, walkTarget, weightSeries } from "./stats";
 import type { DaysMap } from "./types";
 
 const u = "2026-01-01T00:00:00.000Z";
@@ -82,5 +82,22 @@ describe("previous values for prefill", () => {
     expect(previousWeight(days, "2026-11-10")).toBeNull();
     expect(previousWorkout(days, "2026-11-13")?.date).toBe("2026-11-10");
     expect(previousBp(days, "2026-11-13")).toBeNull();
+  });
+});
+
+describe("blood pressure", () => {
+  const d = { date: "2026-11-10", updatedAt: u, bp: { m1: { sys: 132, dia: 84, pulse: 70 }, m2: { sys: 128, dia: 80, pulse: null }, e1: { sys: 140, dia: null, pulse: 60 } } };
+  it("averages each sitting and ignores incomplete readings", () => {
+    const s = bpSummary(d);
+    expect(s.morning).toEqual({ sys: 130, dia: 82, pulse: 70 });
+    expect(s.evening).toBeNull();
+    expect(bpIsHigh(s.morning, { sys: 135, dia: 85 })).toBe(false);
+    expect(bpIsHigh({ sys: 120, dia: 86, pulse: null }, { sys: 135, dia: 85 })).toBe(true);
+  });
+  it("summarises a period and picks the next free slot", () => {
+    expect(bpPeriod({ [d.date]: d }, ["2026-11-09", "2026-11-10"])).toEqual({ morning: { sys: 130, dia: 82, pulse: 70 }, evening: null, daysWith: 1 });
+    expect(nextBpSlot(d, 8)).toBeNull();
+    expect(nextBpSlot(d, 20)).toBe("e2");
+    expect(nextBpSlot(undefined, 9)).toBe("m1");
   });
 });

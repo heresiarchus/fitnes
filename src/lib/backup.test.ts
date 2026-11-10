@@ -28,7 +28,7 @@ describe("backup import", () => {
   });
   it("round-trips its own backup", () => {
     const d: DayEntry = { date: "2026-11-11", updatedAt: "x", steps: 1, note: "a" };
-    const settings = { phase: "2" as const, startDate: "2026-11-10", stepGoal: 6000, lang: "uk" as const, theme: "auto" as const, updatedAt: "t" };
+    const settings = { phase: "2" as const, startDate: "2026-11-10", stepGoal: 6000, lang: "uk" as const, theme: "auto" as const, updatedAt: "t", sources: { steps: true, exercise: false, weight: false, bp: true }, bpMark: { sys: 135, dia: 85 } };
     const parsed = parseBackup(JSON.stringify(makeBackup([d], settings)));
     expect(parsed.days).toEqual([d]);
     expect(parsed.settings).toEqual(settings);

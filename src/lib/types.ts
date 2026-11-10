@@ -37,6 +37,10 @@ export interface DayEntry {
   pain?: Partial<Record<PainArea, number>>;
   flags?: Flag[];
   note?: string;
+  /** User explicitly said they did not weigh that day. */
+  noWeight?: true;
+  /** User confirmed there were no warning signs. */
+  ok?: true;
   updatedAt: string;
   /** Tombstone: the day was deleted (kept so the deletion syncs to other devices). */
   deleted?: true;
@@ -50,8 +54,15 @@ export interface Settings {
   stepGoal: number | null;
   lang: Lang;
   theme: Theme;
+  /** Which fields are filled from Samsung Health (true) or typed by hand (false). */
+  sources: Record<SourceKey, boolean>;
+  /** Blood pressure at or above this is highlighted in the calendar. */
+  bpMark: { sys: number; dia: number };
   updatedAt: string;
 }
+
+export type SourceKey = "steps" | "exercise" | "weight" | "bp";
+export const SOURCE_KEYS: SourceKey[] = ["steps", "exercise", "weight", "bp"];
 
 export interface SyncConfig {
   provider: "github";

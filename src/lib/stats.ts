@@ -1,5 +1,5 @@
 import { addDays, daysBetween, iso, mondayOf, parseIso } from "./date";
-import type { DayEntry, DaysMap, Flag, PainArea, Phase } from "./types";
+import type { BpReading, BpSlot, DayEntry, DaysMap, Flag, PainArea, Phase } from "./types";
 import { PAIN_AREAS } from "./types";
 
 export const PHASES: Record<Phase, { strength: number; walk?: [number, number] }> = {
@@ -129,4 +129,45 @@ export function previousWorkout(days: DaysMap, before: string): DayEntry | null 
 export function previousBp(days: DaysMap, before: string): DayEntry["bp"] | null {
   const dates = Object.keys(days).filter((d) => d < before && days[d].bp).sort();
   return dates.length ? days[dates[dates.length - 1]].bp! : null;
+}
+
+export interface BpAvg { sys: number; dia: number; pulse: number | null }
+
+function avgBp(rs: (BpReading | undefined)[]): BpAvg | null {
+  const ok = rs.filter((r): r is BpReading => !!r && r.sys != null && r.dia != null);
+  if (!ok.length) return null;
+  const pulses = ok.map((r) => r.pulse).filter((p): p is number => p != null);
+  return {
+    sys: Math.round(mean(ok.map((r) => r.sys!))!),
+    dia: Math.round(mean(ok.map((r) => r.dia!))!),
+    pulse: pulses.length ? Math.round(mean(pulses)!) : null,
+  };
+}
+
+/** Morning and evening averages of a day's readings (two readings per sitting are averaged). */
+export function bpSummary(d: DayEntry | undefined): { morning: BpAvg | null; evening: BpAvg | null } {
+  return { morning: avgBp([d?.bp?.m1, d?.bp?.m2]), evening: avgBp([d?.bp?.e1, d?.bp?.e2]) };
+}
+
+export function bpIsHigh(a: BpAvg | null, mark: { sys: number; dia: number }): boolean {
+  return !!a && (a.sys >= mark.sys || a.dia >= mark.dia);
+}
+
+/** Period averages of the per-day morning and evening values. */
+export function bpPeriod(days: DaysMap, dates: string[]) {
+  const m: BpReading[] = [], e: BpReading[] = [];
+  let daysWith = 0;
+  for (const d of dates) {
+    const s = bpSummary(days[d]);
+    if (s.morning) m.push(s.morning);
+    if (s.evening) e.push(s.evening);
+    if (s.morning || s.evening) daysWith += 1;
+  }
+  return { morning: avgBp(m), evening: avgBp(e), daysWith };
+}
+
+/** First free slot for a reading taken at `hour` (before 14:00 counts as morning). */
+export function nextBpSlot(d: DayEntry | undefined, hour: number): BpSlot | null {
+  const order: BpSlot[] = hour < 14 ? ["m1", "m2"] : ["e1", "e2"];
+  return order.find((s) => !d?.bp?.[s]) ?? null;
 }

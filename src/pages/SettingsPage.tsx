@@ -1,14 +1,16 @@
 import { useRef, useState } from "react";
+import { Stepper } from "../components/Stepper";
 import { SyncBadge } from "../components/SyncBadge";
 import { deleteAllDays, liveDays, saveDays, setSyncConfig, updateSettings, useSyncConfig } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import { makeBackup, parseBackup } from "../lib/backup";
 import { downloadFile } from "../lib/download";
 import { num } from "../lib/format";
-import { parseSamsungSteps } from "../lib/samsung";
+import { applySamsung, emptySamsung, parseSamsungFile } from "../lib/samsung";
 import { syncNow } from "../sync/engine";
 import { checkRepo, SyncError } from "../sync/github";
-import type { DayEntry, DaysMap, Lang, Phase, Settings, Theme } from "../lib/types";
+import type { DaysMap, Lang, Phase, Settings, Theme } from "../lib/types";
+import { SOURCE_KEYS } from "../lib/types";
 
 type Status = { text: string; kind?: "ok" | "err" };
 
@@ -65,23 +67,20 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   }
 
   async function importSamsung(files: FileList) {
-    try {
-      const steps: Record<string, number> = {};
-      for (const file of Array.from(files)) Object.assign(steps, parseSamsungSteps(await file.text()));
-      const now = new Date().toISOString();
-      const changes: DayEntry[] = [];
-      for (const [date, n] of Object.entries(steps)) {
-        const cur = days[date];
-        if (cur?.steps === n) continue;
-        changes.push({ ...(cur ?? { date }), date, steps: n, updatedAt: now });
-      }
-      await saveDays(changes);
-      setSamsung({ text: changes.length ? t("samsung.done", { n: changes.length, total: Object.keys(steps).length }) : t("samsung.nothing"), kind: "ok" });
-    } catch {
-      setSamsung({ text: t("samsung.error"), kind: "err" });
-    } finally {
-      if (samsungRef.current) samsungRef.current.value = "";
+    const data = emptySamsung();
+    let bad = 0;
+    for (const file of Array.from(files)) {
+      try { parseSamsungFile(await file.text(), data); } catch { bad += 1; }
     }
+    if (samsungRef.current) samsungRef.current.value = "";
+    if (!data.kinds.length) { setSamsung({ text: t("samsung.error"), kind: "err" }); return; }
+    const { changes, counts } = applySamsung(days, data, settings.sources, (k) => t(`cardio.${k}` as MessageKey));
+    await saveDays(changes);
+    const skipped = data.kinds.filter((k) => !settings.sources[k]).map((k) => t(`src.${k}` as MessageKey).toLowerCase());
+    const parts = [changes.length ? t("samsung.done2", counts) : t("samsung.nothing")];
+    if (skipped.length) parts.push(t("samsung.skipped", { list: skipped.join(", ") }));
+    if (bad) parts.push(t("samsung.badFiles", { n: bad }));
+    setSamsung({ text: parts.join(" "), kind: "ok" });
   }
 
   async function connect() {
@@ -148,6 +147,22 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
+        <h2>{t("src.title")}</h2>
+        <p className="status" style={{ margin: 0 }}>{t("src.intro")}</p>
+        <div className="src-list">
+          {SOURCE_KEYS.map((k) => (
+            <div className="src-row" key={k}>
+              <span>{t(`src.${k}` as MessageKey)}</span>
+              <div className="seg" role="radiogroup" aria-label={t(`src.${k}` as MessageKey)}>
+                <button type="button" role="radio" aria-checked={settings.sources[k]} className={settings.sources[k] ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: true } })}>{t("src.samsung")}</button>
+                <button type="button" role="radio" aria-checked={!settings.sources[k]} className={!settings.sources[k] ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: false } })}>{t("src.manual")}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="block">
         <h2>{t("samsung.title")}</h2>
         <p className="status" style={{ margin: 0 }}>{t("samsung.intro")}</p>
         <ol className="steps-list">
@@ -193,6 +208,13 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </label>
         </div>
         <p className="status" style={{ margin: 0 }}>{t("settings.startHint")} {t("settings.stepGoalHint")}</p>
+        <div className="field"><span>{t("settings.bpMark")}</span>
+          <div className="row">
+            <Stepper value={String(settings.bpMark.sys)} onChange={(v) => num(v) && updateSettings({ bpMark: { ...settings.bpMark, sys: num(v)! } })} step={5} min={90} max={200} label={t("form.bpSys")} className="wide" />
+            <Stepper value={String(settings.bpMark.dia)} onChange={(v) => num(v) && updateSettings({ bpMark: { ...settings.bpMark, dia: num(v)! } })} step={5} min={50} max={130} label={t("form.bpDia")} className="wide" />
+          </div>
+        </div>
+        <p className="status" style={{ margin: 0 }}>{t("settings.bpMarkHint")}</p>
       </section>
 
       <section className="block">
