@@ -7,15 +7,16 @@ interface Props {
   nowLabel: string;
 }
 
+/** ‹ label › on one line; a "back to current" link appears only when you've moved away. */
 export function PeriodNav({ label, offset, onChange, prevLabel, nextLabel, nowLabel }: Props) {
   return (
-    <div className="row between">
-      <h2 className="num-h">{label}</h2>
-      <div className="weeknav">
-        <button type="button" aria-label={prevLabel} onClick={() => onChange(offset - 1)}>‹</button>
-        <button type="button" onClick={() => onChange(0)} disabled={offset === 0}>{nowLabel}</button>
-        <button type="button" aria-label={nextLabel} onClick={() => onChange(offset + 1)} disabled={offset >= 0}>›</button>
+    <div className="pnav">
+      <button type="button" aria-label={prevLabel} onClick={() => onChange(offset - 1)}>‹</button>
+      <div className="pnav-mid">
+        <h2 className="num-h">{label}</h2>
+        {offset !== 0 && <button type="button" className="link" onClick={() => onChange(0)}>{nowLabel}</button>}
       </div>
+      <button type="button" aria-label={nextLabel} onClick={() => onChange(offset + 1)} disabled={offset >= 0}>›</button>
     </div>
   );
 }

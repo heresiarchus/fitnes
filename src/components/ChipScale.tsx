@@ -11,7 +11,7 @@ interface Props {
 /** Row of tap targets for picking a small number (pain 0–10, quick minutes). */
 export function ChipScale({ value, onChange, values, label, clearable = true, suffix }: Props) {
   return (
-    <div className="chips" role="radiogroup" aria-label={label}>
+    <div className="chips" style={{ gridTemplateColumns: `repeat(${values.length}, minmax(0, 1fr))` }} role="radiogroup" aria-label={label}>
       {values.map((v) => {
         const on = value !== "" && Number(value) === v;
         return (

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { SyncBadge } from "../components/SyncBadge";
 import { deleteAllDays, liveDays, saveDays, setSyncConfig, updateSettings, useSyncConfig } from "../db";
@@ -112,33 +113,34 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       <header className="page-head"><h1>{t("settings.title")}</h1></header>
 
       <section className="block">
-        <h2>{t("sync.title")}</h2>
+        <Head title={t("sync.title")} help={t("sync.intro")} />
         <SyncBadge detailed />
         {syncCfg ? (
           <>
             <p className="status" style={{ margin: 0 }}>{t("sync.connectedTo", { repo: syncCfg.repo })}</p>
-            <div className="row">
+            <div className="actions">
               <button type="button" onClick={() => void syncNow()}>{t("sync.now")}</button>
               <button type="button" className="danger" onClick={disconnect}>{t("sync.disconnect")}</button>
             </div>
           </>
         ) : (
           <>
-            <p className="status" style={{ margin: 0 }}>{t("sync.intro")}</p>
-            <ol className="steps-list">
-              <li>{t("sync.step1")}</li>
-              <li>{t("sync.step2")}</li>
-              <li>{t("sync.step3")}</li>
-            </ol>
-            <div className="fields">
+            <Head as="label" title={null} helpLabel={t("help.sync.how")} help={(
+              <ol className="steps-list">
+                <li>{t("sync.step1")}</li>
+                <li>{t("sync.step2")}</li>
+                <li>{t("sync.step3")}</li>
+              </ol>
+            )} />
+            <div className="fields one">
               <label className="field"><span>{t("sync.repo")}</span>
-                <input type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="heresiarchus/fitnes-data" value={repo} onChange={(e) => setRepo(e.target.value)} />
+                <input type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="user/fitnes-data" value={repo} onChange={(e) => setRepo(e.target.value)} />
               </label>
               <label className="field"><span>{t("sync.token")}</span>
                 <input type="password" autoComplete="off" placeholder="github_pat_…" value={token} onChange={(e) => setToken(e.target.value)} />
               </label>
             </div>
-            <div className="row">
+            <div className="actions">
               <button type="button" className="primary" onClick={connect} disabled={connecting || !repo.trim() || !token.trim()}>{t("sync.connect")}</button>
             </div>
           </>
@@ -147,13 +149,12 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <h2>{t("src.title")}</h2>
-        <p className="status" style={{ margin: 0 }}>{t("src.intro")}</p>
+        <Head title={t("src.title")} help={t("src.intro")} />
         <div className="src-list">
           {SOURCE_KEYS.map((k) => (
             <div className="src-row" key={k}>
               <span>{t(`src.${k}` as MessageKey)}</span>
-              <div className="seg" role="radiogroup" aria-label={t(`src.${k}` as MessageKey)}>
+              <div className="seg full" role="radiogroup" aria-label={t(`src.${k}` as MessageKey)}>
                 <button type="button" role="radio" aria-checked={settings.sources[k]} className={settings.sources[k] ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: true } })}>{t("src.samsung")}</button>
                 <button type="button" role="radio" aria-checked={!settings.sources[k]} className={!settings.sources[k] ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: false } })}>{t("src.manual")}</button>
               </div>
@@ -163,13 +164,14 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <h2>{t("samsung.title")}</h2>
-        <p className="status" style={{ margin: 0 }}>{t("samsung.intro")}</p>
-        <ol className="steps-list">
-          <li>{t("samsung.step1")}</li>
-          <li>{t("samsung.step2")}</li>
-        </ol>
-        <div className="row">
+        <Head title={t("samsung.title")} help={t("samsung.intro")} />
+        <Head as="label" title={null} helpLabel={t("help.samsung.how")} help={(
+          <ol className="steps-list">
+            <li>{t("samsung.step1")}</li>
+            <li>{t("samsung.step2")}</li>
+          </ol>
+        )} />
+        <div className="actions">
           <button type="button" onClick={() => samsungRef.current?.click()}>{t("samsung.pick")}</button>
           <input ref={samsungRef} type="file" accept=".csv,text/csv,text/comma-separated-values" multiple hidden onChange={(e) => e.target.files?.length && importSamsung(e.target.files)} />
         </div>
@@ -177,7 +179,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <div className="fields">
+        <div className="fields two">
           <label className="field"><span>{t("settings.lang")}</span>
             <select value={settings.lang} onChange={(e) => updateSettings({ lang: e.target.value as Lang })}>
               <option value="uk">Українська</option>
@@ -193,7 +195,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <h2>{t("settings.program")}</h2>
+        <Head title={t("settings.program")} help={<>{t("settings.startHint")} {t("settings.stepGoalHint")}</>} />
         <div className="fields">
           <label className="field"><span>{t("phase.label")}</span>
             <select value={settings.phase} onChange={(e) => updateSettings({ phase: e.target.value as Phase })}>
@@ -207,23 +209,17 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
             <input type="number" min={0} step={500} inputMode="numeric" value={goal} onChange={(e) => saveGoal(e.target.value)} />
           </label>
         </div>
-        <p className="status" style={{ margin: 0 }}>{t("settings.startHint")} {t("settings.stepGoalHint")}</p>
-        <div className="field"><span>{t("settings.bpMark")}</span>
-          <div className="row">
-            <Stepper value={String(settings.bpMark.sys)} onChange={(v) => num(v) && updateSettings({ bpMark: { ...settings.bpMark, sys: num(v)! } })} step={5} min={90} max={200} label={t("form.bpSys")} className="wide" />
-            <Stepper value={String(settings.bpMark.dia)} onChange={(v) => num(v) && updateSettings({ bpMark: { ...settings.bpMark, dia: num(v)! } })} step={5} min={50} max={130} label={t("form.bpDia")} className="wide" />
+        <div className="field"><Head as="label" title={t("settings.bpMark")} help={t("settings.bpMarkHint")} />
+          <div className="fields two">
+            <Stepper value={String(settings.bpMark.sys)} onChange={(v) => num(v) && updateSettings({ bpMark: { ...settings.bpMark, sys: num(v)! } })} step={5} min={90} max={200} label={t("form.bpSys")} />
+            <Stepper value={String(settings.bpMark.dia)} onChange={(v) => num(v) && updateSettings({ bpMark: { ...settings.bpMark, dia: num(v)! } })} step={5} min={50} max={130} label={t("form.bpDia")} />
           </div>
         </div>
-        <p className="status" style={{ margin: 0 }}>{t("settings.bpMarkHint")}</p>
       </section>
 
       <section className="block">
-        <div className="row between">
-          <h2>{t("settings.data")}</h2>
-          <span className="status num">{t("settings.count", { n: count })}</span>
-        </div>
-        <p className="status" style={{ margin: 0 }}>{t("settings.dataHint")}</p>
-        <div className="row">
+        <Head title={t("settings.data")} help={t("settings.dataHint")} right={<span className="status num">{t("settings.count", { n: count })}</span>} />
+        <div className="actions">
           <button type="button" onClick={exportJson}>{t("settings.backup")}</button>
           <button type="button" onClick={() => fileRef.current?.click()}>{t("settings.import")}</button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} />

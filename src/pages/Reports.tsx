@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Head } from "../components/Head";
 import { PeriodNav } from "../components/PeriodNav";
 import { StatGrid } from "../components/StatGrid";
 import { StepsChart } from "../components/StepsChart";
@@ -49,7 +50,7 @@ export function Reports({ days, settings }: { days: DaysMap; settings: Settings 
     <>
       <header className="page-head">
         <h1>{t("reports.title")}</h1>
-        <div className="seg no-print" role="tablist">
+        <div className="seg full no-print" role="tablist">
           {(["week", "month"] as const).map((k) => (
             <button key={k} type="button" role="tab" aria-selected={kind === k} className={kind === k ? "on" : ""} onClick={() => switchKind(k)}>
               {t(k === "week" ? "reports.week" : "reports.month")}
@@ -65,33 +66,24 @@ export function Reports({ days, settings }: { days: DaysMap; settings: Settings 
       </section>
 
       <section className="block">
-        <div className="row between">
-          <h2>{t("chart.weightPeriod")}</h2>
-          <span className="status">{t("chart.weightLegend")}</span>
-        </div>
+        <Head title={t("chart.weightPeriod")} help={t("chart.weightLegend")} />
         <WeightChart days={days} dates={dates} />
       </section>
 
       <section className="block">
-        <div className="row between">
-          <h2>{t("chart.steps")}</h2>
-          {settings.stepGoal != null && <span className="status">{t("chart.stepsLegend")}</span>}
-        </div>
+        <Head title={t("chart.steps")} help={settings.stepGoal != null ? t("chart.stepsLegend") : undefined} />
         <StepsChart days={days} dates={dates} goal={settings.stepGoal} />
       </section>
 
       <section className="block">
-        <div className="row between">
-          <h2>{t("reports.text")}</h2>
-          <button type="button" className="no-print" onClick={copy}>{copyLabel}</button>
-        </div>
+        <Head title={t("reports.text")} />
         <textarea id="report-text" className="report" readOnly value={report} aria-label={t("reports.text")} rows={Math.min(30, report.split("\n").length + 1)} />
+        <div className="actions no-print"><button type="button" className="primary" onClick={copy}>{copyLabel}</button></div>
       </section>
 
       <section className="block no-print">
-        <h2>{t("reports.export")}</h2>
-        <p className="status" style={{ margin: 0 }}>{t("reports.exportHint")}</p>
-        <div className="row">
+        <Head title={t("reports.export")} help={t("reports.exportHint")} />
+        <div className="actions">
           <button type="button" onClick={exportCsv}>{t("reports.csv")}</button>
           <button type="button" onClick={() => window.print()}>{t("reports.print")}</button>
         </div>
