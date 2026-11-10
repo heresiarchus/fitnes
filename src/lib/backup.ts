@@ -75,6 +75,8 @@ export function normalizeDay(raw: unknown, fallbackDate?: string): DayEntry | nu
   }
   const note = str(r.note);
   if (note) out.note = note;
+  if (r.noWeight === true && out.weight == null) out.noWeight = true;
+  if (r.ok === true && !out.flags) out.ok = true;
   return out;
 }
 

@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
+import { useMemo } from "react";
 import type { DayEntry, DaysMap, Settings, SyncConfig } from "./lib/types";
 
 interface SettingsRow extends Settings { key: "main" }
@@ -22,8 +23,20 @@ export const DEFAULT_SETTINGS: Settings = {
   stepGoal: null,
   lang: "uk",
   theme: "auto",
+  sources: { steps: true, exercise: true, weight: false, bp: false },
+  bpMark: { sys: 135, dia: 85 },
   updatedAt: EPOCH,
 };
+
+/** Fills in defaults, including nested ones, for settings saved by older versions. */
+export function normalizeSettings(raw: Partial<Settings> | undefined): Settings {
+  const r = raw ?? {};
+  return {
+    ...DEFAULT_SETTINGS, ...r,
+    sources: { ...DEFAULT_SETTINGS.sources, ...(r.sources ?? {}) },
+    bpMark: { ...DEFAULT_SETTINGS.bpMark, ...(r.bpMark ?? {}) },
+  };
+}
 
 /** Fired after every user-made local change, so sync can push it. */
 export const localChanges = new EventTarget();
@@ -31,27 +44,29 @@ const changed = () => localChanges.dispatchEvent(new Event("change"));
 
 export function useSettings(): Settings {
   const row = useLiveQuery(() => db.settings.get("main"), []);
-  const { key: _key, ...rest } = row ?? ({} as Partial<SettingsRow>);
-  return { ...DEFAULT_SETTINGS, ...rest };
+  return useMemo(() => {
+    const { key: _key, ...rest } = row ?? ({} as Partial<SettingsRow>);
+    return normalizeSettings(rest);
+  }, [row]);
 }
 
 export async function getSettings(): Promise<Settings> {
   const row = await db.settings.get("main");
   const { key: _key, ...rest } = row ?? ({} as Partial<SettingsRow>);
-  return { ...DEFAULT_SETTINGS, ...rest };
+  return normalizeSettings(rest);
 }
 
 export async function updateSettings(patch: Partial<Settings>) {
   await db.transaction("rw", db.settings, async () => {
     const cur = await db.settings.get("main");
-    await db.settings.put({ ...DEFAULT_SETTINGS, ...cur, ...patch, updatedAt: new Date().toISOString(), key: "main" });
+    await db.settings.put({ ...normalizeSettings(cur), ...patch, updatedAt: new Date().toISOString(), key: "main" });
   });
   changed();
 }
 
 /** Writes settings that came from sync (keeps their timestamp, no change event). */
 export async function putSyncedSettings(s: Settings) {
-  await db.settings.put({ ...DEFAULT_SETTINGS, ...s, key: "main" });
+  await db.settings.put({ ...normalizeSettings(s), key: "main" });
 }
 
 /** All live (not deleted) days as a date-keyed map; undefined while loading. */

@@ -10,10 +10,12 @@ export interface BpRow { sys: string; dia: string; pulse: string }
 export interface DayFormState {
   weight: string;
   /**
-   * False while the weight is only prefilled from the previous entry: it is shown on the
-   * drum but not saved until the user turns the drum or confirms it.
+   * "pending": the drum shows the previous weight but nothing is decided yet;
+   * "yes": save the weight; "no": the user said they did not weigh.
    */
-  weightConfirmed: boolean;
+  weightChoice: "pending" | "yes" | "no";
+  /** "No warning signs" was confirmed. */
+  ok: boolean;
   weightCond: WeightCond;
   steps: string;
   walk: string;
@@ -49,7 +51,8 @@ export function toFormState(d: DayEntry | undefined, defaultWalk: WalkIntensity,
   for (const a of PAIN_AREAS) pain[a] = s(d?.pain?.[a]);
   return {
     weight: d?.weight != null ? s(d.weight) : s(prevWeight),
-    weightConfirmed: d?.weight != null,
+    weightChoice: d?.weight != null ? "yes" : d?.noWeight ? "no" : "pending",
+    ok: !!d?.ok,
     weightCond: d?.weightCond ?? "morning",
     steps: s(d?.steps),
     walk: s(d?.walkMin),
@@ -79,7 +82,8 @@ function setItem(row: SetRow): Omit<StrengthItem, "id" | "name"> | null {
 export function fromFormState(date: string, f: DayFormState, now = new Date()): DayEntry | null {
   const out: DayEntry = { date, updatedAt: now.toISOString() };
   const w = num(f.weight);
-  if (f.weightConfirmed && w != null && w > 0) { out.weight = w; out.weightCond = f.weightCond; }
+  if (f.weightChoice === "yes" && w != null && w > 0) { out.weight = w; out.weightCond = f.weightCond; }
+  else if (f.weightChoice === "no") out.noWeight = true;
   const steps = num(f.steps);
   if (steps != null && steps >= 0) out.steps = Math.round(steps);
   const walk = num(f.walk);
@@ -115,8 +119,19 @@ export function fromFormState(date: string, f: DayFormState, now = new Date()): 
   }
   if (Object.keys(pain).length) out.pain = pain;
   if (f.flags.length) out.flags = FLAGS.filter((x) => f.flags.includes(x));
+  else if (f.ok) out.ok = true;
   const note = f.note.trim();
   if (note) out.note = note;
   const meaningful = Object.keys(out).some((k) => k !== "date" && k !== "updatedAt");
   return meaningful ? out : null;
+}
+
+export type MissingField = "weight" | "feeling";
+
+/** Required answers that are still missing; each takes one tap to give. */
+export function missingRequired(f: DayFormState): MissingField[] {
+  const out: MissingField[] = [];
+  if (f.weightChoice === "pending") out.push("weight");
+  if (!f.ok && !f.flags.length) out.push("feeling");
+  return out;
 }
