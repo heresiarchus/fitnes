@@ -60,16 +60,28 @@ export async function syncReminders(settings: Settings, days: DaysMap, t: TFn) {
     const pending = await LocalNotifications.getPending();
     if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
     if (!(await notificationsAllowed())) return;
-    const plan: PlannedReminder[] = planReminders(settings.reminders, days, new Date(), 14);
+    const plan: PlannedReminder[] = planReminders(settings.reminders, days, new Date(), 14, settings.habits);
     if (!plan.length) return;
     await LocalNotifications.schedule({
-      notifications: plan.map((p) => ({
-        id: p.id,
-        title: t(`remind.${p.kind}.title`),
-        body: t(`remind.${p.kind}.body`),
-        schedule: { at: p.at, allowWhileIdle: true },
-        extra: { route: p.kind === "bp" ? "/history" : "/log" },
-      })),
+      notifications: plan.map((p) => {
+        if (p.kind === "habit" && p.habit) {
+          return {
+            id: p.id,
+            title: p.minOnly ? t("habit.remindMin") : p.habit.title,
+            body: t("habit.remindBody", { min: p.habit.minVersion }),
+            schedule: { at: p.at, allowWhileIdle: true },
+            extra: { route: "/" },
+          };
+        }
+        const kind = p.kind as Exclude<PlannedReminder["kind"], "habit">;
+        return {
+          id: p.id,
+          title: t(`remind.${kind}.title`),
+          body: t(`remind.${kind}.body`),
+          schedule: { at: p.at, allowWhileIdle: true },
+          extra: { route: kind === "bp" ? "/history" : kind === "review" ? "/" : "/log" },
+        };
+      }),
     });
   } catch {
     // Reminders are best effort.

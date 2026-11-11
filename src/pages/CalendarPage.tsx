@@ -120,19 +120,26 @@ function BpQuickAdd({ date, today, days }: { date: string; today: string; days: 
   const { t } = useI18n();
   const prev = previousBp(days, iso(addDays(parseIso(date), 1)));
   const last = prev?.e1 ?? prev?.m1 ?? prev?.m2 ?? prev?.e2;
-  const [part, setPart] = useState<"am" | "pm">(date === today && new Date().getHours() >= 14 ? "pm" : "am");
+  const [part, setPart] = useState<"am" | "pm" | "ep">(date === today && new Date().getHours() >= 14 ? "pm" : "am");
   const [sys, setSys] = useState("");
   const [dia, setDia] = useState("");
   const [pulse, setPulse] = useState("");
   const [msg, setMsg] = useState<{ text: string; kind?: "ok" | "err" }>({ text: "" });
-  const slot = nextBpSlot(days[date], part === "am" ? 8 : 20);
+  const slot = part === "ep" ? "ep" : nextBpSlot(days[date], part === "am" ? 8 : 20);
 
   async function add() {
     const s = num(sys), d = num(dia);
     if (s == null || d == null) { setMsg({ text: t("cal.bpNeed"), kind: "err" }); return; }
     if (!slot) return;
     const cur: DayEntry = days[date] ?? { date, updatedAt: "" };
-    await saveDay({ ...cur, bp: { ...(cur.bp ?? {}), [slot]: { sys: s, dia: d, pulse: num(pulse) } }, updatedAt: new Date().toISOString() });
+    const reading = { sys: s, dia: d, pulse: num(pulse) };
+    const stamp = new Date().toISOString();
+    if (slot === "ep") {
+      // Readings during a night episode stay out of the morning/evening averages.
+      await saveDay({ ...cur, bpEpisodes: [...(cur.bpEpisodes ?? []), { time: new Date().toTimeString().slice(0, 5), ...reading }], nightEpisode: true, updatedAt: stamp });
+    } else {
+      await saveDay({ ...cur, bp: { ...(cur.bp ?? {}), [slot]: reading }, updatedAt: stamp });
+    }
     setMsg({ text: t("cal.bpSaved", { v: `${s}/${d}` }), kind: "ok" });
     setSys(""); setDia(""); setPulse("");
   }
@@ -142,8 +149,8 @@ function BpQuickAdd({ date, today, days }: { date: string; today: string; days: 
       <Head title={t("cal.bpAddFor", { d: ddmm(date) })} help={t("form.bpHint")} />
       <div>
         <div className="seg full" role="radiogroup">
-          {(["am", "pm"] as const).map((p) => (
-            <button key={p} type="button" role="radio" aria-checked={part === p} className={part === p ? "on" : ""} onClick={() => setPart(p)}>{t(p === "am" ? "cal.morning" : "cal.evening")}</button>
+          {(["am", "pm", "ep"] as const).map((p) => (
+            <button key={p} type="button" role="radio" aria-checked={part === p} className={part === p ? "on" : ""} onClick={() => setPart(p)}>{t(p === "am" ? "cal.morning" : p === "pm" ? "cal.evening" : "cal.bpEpisode")}</button>
           ))}
         </div>
       </div>
@@ -184,6 +191,22 @@ function DayDetail({ date, day, settings }: { date: string; day: DayEntry | unde
     )]);
     if (day.pain && Object.keys(day.pain).length) rows.push([t("cal.day.pain"), PAIN_AREAS.map((a) => day.pain?.[a] ?? "—").join(" / ")]);
     if (day.flags?.length) rows.push([t("cal.day.flags"), <span className="high">{day.flags.map((f) => t(`flag.${f}` as MessageKey)).join(", ")}</span>]);
+    if (day.bpEpisodes?.length) rows.push([t("cal.day.bpEpisodes"), (
+      <ul className="plain">{day.bpEpisodes.map((v, i) => <li key={i}>{v.time}: <span className="num">{v.sys ?? "?"}/{v.dia ?? "?"}</span>{v.pulse != null ? " · " + t("cal.pulse", { p: v.pulse }) : ""}</li>)}</ul>
+    )]);
+    if (day.habitLog?.length) rows.push([t("cal.day.habits"), (
+      <ul className="plain">{day.habitLog.map((m) => {
+        const h = settings.habits.find((x) => x.id === m.habitId);
+        return <li key={m.habitId}>{h?.title ?? m.habitId}: {t(`habit.status.${m.status}`)}{m.detail ? ` · ${m.detail}` : ""}{m.reasonIfNo ? ` · ${m.reasonIfNo}` : ""}</li>;
+      })}</ul>
+    )]);
+    const ctx = [
+      day.dayType ? t(`ctx.dayType.${day.dayType}` as MessageKey) : "",
+      day.partnerHere != null ? `${t("ctx.partner").toLowerCase()}: ${t(day.partnerHere ? "ctx.yes" : "ctx.no")}` : "",
+      day.nightEpisode ? t("ctx.episode").toLowerCase() + (day.episodeNote ? ` (${day.episodeNote})` : "") : "",
+    ].filter(Boolean);
+    if (ctx.length) rows.push([t("cal.day.context"), ctx.join(" · ")]);
+    if (day.energyAm != null || day.energyPm != null) rows.push([t("cal.day.energy"), `${day.energyAm ?? "—"} / ${day.energyPm ?? "—"}`]);
     if (day.note) rows.push([t("cal.day.note"), day.note]);
   }
   return (

@@ -43,13 +43,22 @@ async function runOnce() {
       const rf = remote ? parseSyncFile(remote.text) : null;
       const local = await db.days.toArray();
       const localSettings = await getSettings();
-      const m = merge(local, rf?.days ?? [], localSettings, rf?.settings ?? null);
+      const localItems = await db.items.toArray();
+      const m = merge(local, rf?.days ?? [], localSettings, rf?.settings ?? null, localItems, rf?.items ?? []);
       await applyRemote(m.toLocal);
+      if (m.itemsToLocal.length) {
+        await db.transaction("rw", db.items, async () => {
+          for (const r of m.itemsToLocal) {
+            const cur = await db.items.get(r.id);
+            if (!cur || cur.updatedAt < r.updatedAt) await db.items.put(r);
+          }
+        });
+      }
       if (m.settingsToLocal) await putSyncedSettings(m.settingsToLocal);
       if (!m.remoteChanged && remote) break;
       try {
         const live = m.days.filter((d) => !d.deleted).length;
-        await putFile(cfg.repo, cfg.token, cfg.path, serializeSyncFile(m.days, m.settings), remote?.sha, `sync: ${live} days`);
+        await putFile(cfg.repo, cfg.token, cfg.path, serializeSyncFile(m.days, m.settings, new Date(), m.items), remote?.sha, `sync: ${live} days`);
         break;
       } catch (e) {
         if (e instanceof SyncError && e.code === "conflict" && attempt < 3) continue;

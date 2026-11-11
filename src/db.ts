@@ -1,7 +1,8 @@
 import Dexie, { type EntityTable } from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo } from "react";
-import type { DayEntry, DaysMap, Settings, SyncConfig } from "./lib/types";
+import { DEFAULT_HABITS } from "./lib/habits";
+import type { DayEntry, DaysMap, Item, Settings, SyncConfig } from "./lib/types";
 
 interface SettingsRow extends Settings { key: "main" }
 interface MetaRow { key: "sync"; value: SyncConfig }
@@ -10,10 +11,12 @@ export const db = new Dexie("fitnes") as Dexie & {
   days: EntityTable<DayEntry, "date">;
   settings: EntityTable<SettingsRow, "key">;
   meta: EntityTable<MetaRow, "key">;
+  items: EntityTable<Item, "id">;
 };
 
 db.version(1).stores({ days: "date", settings: "key" });
 db.version(2).stores({ days: "date", settings: "key", meta: "key" });
+db.version(3).stores({ days: "date", settings: "key", meta: "key", items: "id, kind" });
 
 export const EPOCH = "1970-01-01T00:00:00.000Z";
 
@@ -25,7 +28,12 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "auto",
   sources: { steps: true, exercise: true, weight: false, bp: false },
   bpMark: { sys: 135, dia: 85 },
-  reminders: { weigh: { on: true, time: "08:00" }, evening: { on: true, time: "21:00" }, bp: { on: false, time: "20:00" } },
+  reminders: {
+    weigh: { on: true, time: "08:00" }, evening: { on: true, time: "21:00" },
+    bp: { on: false, time: "20:00" }, review: { on: true, time: "22:20" },
+  },
+  habits: DEFAULT_HABITS,
+  hideWeight: false,
   updatedAt: EPOCH,
 };
 
@@ -40,7 +48,9 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
       weigh: { ...DEFAULT_SETTINGS.reminders.weigh, ...(r.reminders?.weigh ?? {}) },
       evening: { ...DEFAULT_SETTINGS.reminders.evening, ...(r.reminders?.evening ?? {}) },
       bp: { ...DEFAULT_SETTINGS.reminders.bp, ...(r.reminders?.bp ?? {}) },
+      review: { ...DEFAULT_SETTINGS.reminders.review, ...(r.reminders?.review ?? {}) },
     },
+    habits: Array.isArray(r.habits) && r.habits.length ? r.habits : DEFAULT_HABITS,
   };
 }
 
@@ -122,4 +132,31 @@ export async function setSyncConfig(value: SyncConfig | null) {
 
 export function useSyncConfig(): SyncConfig | null | undefined {
   return useLiveQuery(async () => (await db.meta.get("sync"))?.value ?? null, []);
+}
+
+/** Live (not deleted) items of one kind; undefined while loading. */
+export function useItems<K extends Item["kind"]>(kind: K): Extract<Item, { kind: K }>[] | undefined {
+  return useLiveQuery(async () => {
+    const all = await db.items.where("kind").equals(kind).toArray();
+    return all.filter((i) => !i.deleted) as Extract<Item, { kind: K }>[];
+  }, [kind]);
+}
+
+export const newId = (prefix: string) => prefix + "-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+export async function saveItem(item: Item) {
+  await db.items.put({ ...item, updatedAt: new Date().toISOString() });
+  changed();
+}
+
+export async function saveItems(items: Item[]) {
+  if (!items.length) return;
+  await db.items.bulkPut(items);
+  changed();
+}
+
+export async function deleteItem(item: Item) {
+  // Keep a tombstone so the deletion reaches other devices.
+  await db.items.put({ id: item.id, kind: item.kind, deleted: true, updatedAt: new Date().toISOString() } as Item);
+  changed();
 }

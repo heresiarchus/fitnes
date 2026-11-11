@@ -1,4 +1,4 @@
-import type { DayEntry, Settings } from "../lib/types";
+import type { DayEntry, Item, Settings } from "../lib/types";
 
 export interface SyncFile {
   format: "fitnes-sync";
@@ -6,6 +6,7 @@ export interface SyncFile {
   updatedAt: string;
   settings: Settings | null;
   days: DayEntry[];
+  items: Item[];
 }
 
 export interface MergeResult {
@@ -17,6 +18,9 @@ export interface MergeResult {
   settingsToLocal: Settings | null;
   /** Whether the remote file lacks something the merge contains. */
   remoteChanged: boolean;
+  /** Tasks, diary entries and history months, merged the same way by id. */
+  items: Item[];
+  itemsToLocal: Item[];
 }
 
 const newer = (a: { updatedAt: string }, b: { updatedAt: string }) => a.updatedAt > b.updatedAt;
@@ -25,6 +29,7 @@ const newer = (a: { updatedAt: string }, b: { updatedAt: string }) => a.updatedA
 export function merge(
   local: DayEntry[], remote: DayEntry[],
   localSettings: Settings | null, remoteSettings: Settings | null,
+  localItems: Item[] = [], remoteItems: Item[] = [],
 ): MergeResult {
   const byDate = new Map<string, DayEntry>();
   const remoteBy = new Map(remote.map((d) => [d.date, d]));
@@ -46,16 +51,29 @@ export function merge(
     settingsToLocal = remoteSettings;
   }
   if (settings && (!remoteSettings || settings.updatedAt !== remoteSettings.updatedAt)) remoteChanged = true;
+  const byId = new Map<string, Item>(localItems.map((i) => [i.id, i]));
+  const remoteIds = new Map(remoteItems.map((i) => [i.id, i]));
+  const itemsToLocal: Item[] = [];
+  for (const r of remoteItems) {
+    const l = byId.get(r.id);
+    if (!l || newer(r, l)) { byId.set(r.id, r); itemsToLocal.push(r); }
+  }
+  for (const [id, i] of byId) {
+    const r = remoteIds.get(id);
+    if (!r || r.updatedAt !== i.updatedAt) { remoteChanged = true; break; }
+  }
   const days = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-  return { days, settings, toLocal, settingsToLocal, remoteChanged };
+  const items = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+  return { days, settings, toLocal, settingsToLocal, remoteChanged, items, itemsToLocal };
 }
 
 /** One day per line, so the file history on GitHub stays readable. */
-export function serializeSyncFile(days: DayEntry[], settings: Settings | null, now = new Date()): string {
+export function serializeSyncFile(days: DayEntry[], settings: Settings | null, now = new Date(), items: Item[] = []): string {
   const head = { format: "fitnes-sync", version: 1, updatedAt: now.toISOString(), settings };
   const body = days.map((d) => "    " + JSON.stringify(d)).join(",\n");
   const h = JSON.stringify(head, null, 2);
-  return h.slice(0, -2) + ',\n  "days": [\n' + body + (days.length ? "\n" : "") + "  ]\n}\n";
+  const itemBody = items.map((i) => "    " + JSON.stringify(i)).join(",\n");
+  return h.slice(0, -2) + ',\n  "days": [\n' + body + (days.length ? "\n" : "") + '  ],\n  "items": [\n' + itemBody + (items.length ? "\n" : "") + "  ]\n}\n";
 }
 
 export function parseSyncFile(text: string): SyncFile {
@@ -65,5 +83,6 @@ export function parseSyncFile(text: string): SyncFile {
     format: "fitnes-sync", version: 1, updatedAt: data.updatedAt ?? "",
     settings: data.settings ?? null,
     days: data.days.filter((d): d is DayEntry => !!d && typeof d.date === "string" && typeof d.updatedAt === "string"),
+    items: (Array.isArray(data.items) ? data.items : []).filter((i): i is Item => !!i && typeof i.id === "string" && typeof i.updatedAt === "string"),
   };
 }

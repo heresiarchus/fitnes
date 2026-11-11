@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChipScale } from "../components/ChipScale";
 import { SyncBadge } from "../components/SyncBadge";
+import { ChipScale as Scale } from "../components/ChipScale";
+import { HabitMarker } from "../components/HabitMarker";
 import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { WeightPicker } from "../components/WeightPicker";
@@ -10,9 +12,10 @@ import { type MessageKey, useI18n } from "../i18n";
 import { addDays, ddmm, iso, parseIso } from "../lib/date";
 import { type DayFormState, fromFormState, missingRequired, type SetRow, toFormState } from "../lib/dayForm";
 import { fmt, num } from "../lib/format";
+import { activeHabits } from "../lib/habits";
 import { lastStrengthFor, previousBp, previousWeight, previousWorkout } from "../lib/stats";
 import type { BpSlot, DayEntry, DaysMap, Flag, PainArea, Settings } from "../lib/types";
-import { BP_SLOTS, EXERCISES, FLAGS, HEART_FLAGS, PAIN_AREAS } from "../lib/types";
+import { BP_SLOTS, DAY_TYPES, EXERCISES, FLAGS, HEART_FLAGS, PAIN_AREAS } from "../lib/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CARDIO = ["bike", "pool", "elliptical", "rower", "cycle", "run"] as const;
@@ -53,7 +56,11 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
   const { t, lang } = useI18n();
   const navigate = useNavigate();
   const prevW = previousWeight(days, date);
-  const [f, setF] = useState<DayFormState>(() => toFormState(entry, settings.phase === "1" ? "light" : "moderate", prevW?.weight ?? null));
+  const habits = activeHabits(settings.habits, date);
+  const [f, setF] = useState<DayFormState>(() => toFormState(entry, settings.phase === "1" ? "light" : "moderate", prevW?.weight ?? null, habits));
+  const nowHm = () => new Date().toTimeString().slice(0, 5);
+  /** Confirms the weight; for today's entry also notes the time of the weigh-in. */
+  const weighed = (p: DayFormState, weight: string): DayFormState => ({ ...p, weight, weightChoice: "yes", weightTime: p.weightTime || (date === today ? nowHm() : "") });
   const [cardioKind, setCardioKind] = useState(() => cardioKindOf(entry?.cardioWhat ?? "", t, entry?.cardioMin != null));
   const [status, setStatus] = useState<Status>(entry ? { text: t("form.exists") } : { text: "" });
   const [saving, setSaving] = useState(false);
@@ -122,7 +129,10 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
       (miss[0] === "weight" ? weightRef : feelingRef).current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    const data = fromFormState(date, f);
+    const data = fromFormState(date, f, new Date(), {
+      habits, keep: entry,
+      labels: { walk: t("cal.day.walk").toLowerCase(), strength: t("cal.day.strength").toLowerCase(), min: t("common.min"), auto: t("habit.auto") },
+    });
     if (!data) { setStatus({ text: t("form.empty"), kind: "err" }); return; }
     setSaving(true);
     try {
@@ -158,7 +168,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
         <fieldset ref={weightRef} className={missing.includes("weight") ? "need" : ""}>
           <Head as="legend" title={<>{t("form.weight")}<span className="req">{t("form.required")}</span></>} help={t("help.weight")} />
           <div className={"weight-box" + (f.weightChoice === "yes" ? "" : " pending")}>
-            <WeightPicker value={f.weight} onChange={(v) => setF((p) => ({ ...p, weight: v, weightChoice: "yes" }))} />
+            <WeightPicker value={f.weight} onChange={(v) => setF((p) => weighed(p, v))} />
             <div className="weight-side">
               {f.weightChoice === "yes" && (
                 <>
@@ -169,14 +179,14 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
               {f.weightChoice === "no" && (
                 <>
                   <span className="status ok">✓ {t("form.noWeightChosen")}</span>
-                  <button type="button" className="link" onClick={() => set("weightChoice", "yes")}>{t("form.weighAfterAll")}</button>
+                  <button type="button" className="link" onClick={() => setF((p) => weighed(p, p.weight))}>{t("form.weighAfterAll")}</button>
                 </>
               )}
               {f.weightChoice === "pending" && (
                 <>
                   <span className="status">{prevW ? t("form.weightPrefill", { d: ddmm(prevW.date) }) : t("form.weightFirst")}</span>
                   <div className="actions">
-                    {prevW && <button type="button" className="primary" onClick={() => setF((p) => ({ ...p, weight: p.weight || String(prevW.weight), weightChoice: "yes" }))}>{t("form.weightSame")} {fmt(num(f.weight) ?? prevW.weight, lang)}</button>}
+                    {prevW && <button type="button" className="primary" onClick={() => setF((p) => weighed(p, p.weight || String(prevW.weight)))}>{t("form.weightSame")} {fmt(num(f.weight) ?? prevW.weight, lang)}</button>}
                     <button type="button" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
                   </div>
                 </>
@@ -191,6 +201,16 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
           </div>
           {missing.includes("weight") && <p className="status err" style={{ margin: 0 }}>{t("form.needWeight")}</p>}
         </fieldset>
+
+        {habits.length > 0 && (
+          <fieldset>
+            <Head as="legend" title={t("habit.title")} help={t("habit.help")} />
+            {habits.map((h) => (
+              <HabitMarker key={h.id} habit={h} row={f.habits[h.id] ?? { status: "", detail: "", reason: "", extra: {} }}
+                onChange={(row) => setF((p) => ({ ...p, habits: { ...p.habits, [h.id]: row } }))} />
+            ))}
+          </fieldset>
+        )}
 
         <fieldset>
           <Head as="legend" title={<>{t("form.steps")}{settings.sources.steps && <span className="src-tag">{t("form.fromSamsung")}</span>}</>} help={settings.sources.steps ? t("form.stepsHint") : undefined} />
@@ -295,6 +315,32 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
           {heart && <div className="alert" role="alert"><b>{t("form.alertHeartTitle")}</b> {t("form.alertHeart")}</div>}
           {foot && <div className="alert" role="alert"><b>{t("form.alertFootTitle")}</b> {t("form.alertFoot")}</div>}
         </fieldset>
+
+        <details>
+          <summary>{t("ctx.title")}</summary>
+          <div className="ctx">
+            <label className="field"><span>{t("ctx.dayType")}</span>
+              <select value={f.dayType} onChange={(e) => set("dayType", e.target.value as DayFormState["dayType"])}>
+                <option value="">{t("ctx.dayType.none")}</option>
+                {DAY_TYPES.map((k) => <option key={k} value={k}>{t(`ctx.dayType.${k}` as MessageKey)}</option>)}
+              </select>
+            </label>
+            {(["partnerHere", "nightEpisode"] as const).map((k) => (
+              <div className="field" key={k}><span>{t(k === "partnerHere" ? "ctx.partner" : "ctx.episode")}</span>
+                <div className="seg full" role="radiogroup">
+                  {(["yes", "no"] as const).map((v) => (
+                    <button key={v} type="button" role="radio" aria-checked={f[k] === v} className={f[k] === v ? "on" : ""} onClick={() => set(k, f[k] === v ? "" : v)}>{t(v === "yes" ? "ctx.yes" : "ctx.no")}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {f.nightEpisode === "yes" && (
+              <input type="text" maxLength={200} placeholder={t("ctx.episodeNote")} aria-label={t("ctx.episodeNote")} value={f.episodeNote} onChange={(e) => set("episodeNote", e.target.value)} />
+            )}
+            <div className="field"><span>{t("ctx.energyAm")}</span><Scale value={f.energyAm} onChange={(v) => set("energyAm", v)} values={[1, 2, 3, 4, 5]} label={t("ctx.energyAm")} /></div>
+            <div className="field"><span>{t("ctx.energyPm")}</span><Scale value={f.energyPm} onChange={(v) => set("energyPm", v)} values={[1, 2, 3, 4, 5]} label={t("ctx.energyPm")} /></div>
+          </div>
+        </details>
 
         <details open={bpOpen} onToggle={(e) => setBpOpen((e.target as HTMLDetailsElement).open)}>
           <summary>{t("form.bp")}</summary>
