@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Fitnes</string>
+    <string name="title_activity_main">Fitnes</string>
+    <string name="package_name">app.fitnes.journal</string>
+    <string name="custom_url_scheme">app.fitnes.journal</string>
+    <string name="widget_title">Сьогодні</string>
+    <string name="widget_weight">Вага</string>
+    <string name="widget_steps">Кроки</string>
+    <string name="widget_walk">Ходьба</string>
+    <string name="widget_action">+ Запис</string>
+    <string name="widget_description">Вага, кроки й ходьба за сьогодні</string>
+</resources>

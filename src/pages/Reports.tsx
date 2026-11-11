@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Head } from "../components/Head";
+import { HistoryCharts } from "../components/HistoryCharts";
 import { PeriodNav } from "../components/PeriodNav";
 import { StatGrid } from "../components/StatGrid";
 import { StepsChart } from "../components/StepsChart";
@@ -12,7 +13,7 @@ import { buildReport } from "../lib/report";
 import type { DaysMap, Settings } from "../lib/types";
 import { downloadFile } from "../lib/download";
 
-type Kind = "week" | "month";
+type Kind = "week" | "month" | "all";
 
 export function Reports({ days, settings }: { days: DaysMap; settings: Settings }) {
   const { t, lang } = useI18n();
@@ -24,7 +25,7 @@ export function Reports({ days, settings }: { days: DaysMap; settings: Settings 
   const label = kind === "week"
     ? `${t("week.title")} ${ddmm(dates[0])}–${ddmm(dates[dates.length - 1])}`
     : monthName(dates[0], lang);
-  const report = buildReport(days, dates, prev, settings.phase, t, lang);
+  const report = buildReport(days, dates, prev, settings.phase, t, lang, settings.habits);
 
   const switchKind = (k: Kind) => { setKind(k); setOffset(0); };
 
@@ -51,14 +52,15 @@ export function Reports({ days, settings }: { days: DaysMap; settings: Settings 
       <header className="page-head">
         <h1>{t("reports.title")}</h1>
         <div className="seg full no-print" role="tablist">
-          {(["week", "month"] as const).map((k) => (
+          {(["week", "month", "all"] as const).map((k) => (
             <button key={k} type="button" role="tab" aria-selected={kind === k} className={kind === k ? "on" : ""} onClick={() => switchKind(k)}>
-              {t(k === "week" ? "reports.week" : "reports.month")}
+              {t(k === "week" ? "reports.week" : k === "month" ? "reports.month" : "hist.tab")}
             </button>
           ))}
         </div>
       </header>
 
+      {kind === "all" ? <HistoryCharts days={days} /> : (<>
       <section className="block">
         <PeriodNav label={label} offset={offset} onChange={setOffset}
           prevLabel={t("common.prev")} nextLabel={t("common.next")} nowLabel={t("common.current")} />
@@ -80,6 +82,8 @@ export function Reports({ days, settings }: { days: DaysMap; settings: Settings 
         <textarea id="report-text" className="report" readOnly value={report} aria-label={t("reports.text")} rows={Math.min(30, report.split("\n").length + 1)} />
         <div className="actions no-print"><button type="button" className="primary" onClick={copy}>{copyLabel}</button></div>
       </section>
+
+      </>)}
 
       <section className="block no-print">
         <Head title={t("reports.export")} help={t("reports.exportHint")} />

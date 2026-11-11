@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fromFormState, missingRequired, toFormState } from "./dayForm";
+import { DEFAULT_HABITS } from "./habits";
 import type { DayEntry } from "./types";
 
 const now = new Date("2026-11-10T08:00:00Z");
@@ -35,11 +36,13 @@ describe("day form conversion", () => {
     f.steps = "100";
     expect(fromFormState("2026-11-11", f, now)?.weight).toBeUndefined();
     f.weightChoice = "yes";
-    f.ok = true;
+    f.feel = "4";
+    f.positive = " прогулявся ";
     expect(missingRequired(f)).toEqual([]);
     const saved = fromFormState("2026-11-11", f, now)!;
     expect(saved.weight).toBe(130.5);
-    expect(saved.ok).toBe(true);
+    expect(saved.feel).toBe(4);
+    expect(saved.positive).toBe("прогулявся");
     f.weightChoice = "no";
     const skipped = fromFormState("2026-11-11", f, now)!;
     expect(skipped.weight).toBeUndefined();
@@ -55,5 +58,29 @@ describe("day form conversion", () => {
       bp: { m1: { sys: 130, dia: 85, pulse: 70 } }, pain: { foot: 3 }, flags: ["dizzy"], note: "добре",
     };
     expect(fromFormState(entry.date, toFormState(entry, "light"), now)).toEqual(entry);
+  });
+});
+
+describe("habits and context in the day form", () => {
+  const habits = DEFAULT_HABITS.slice(0, 2);
+  const labels = { walk: "ходьба", strength: "силова", min: "хв", auto: "авто" };
+  it("saves marks, context and keeps fields the form does not edit", () => {
+    const keep: DayEntry = { date: "2026-11-11", updatedAt: "x", bpEpisodes: [{ time: "03:10", sys: 150, dia: 95, pulse: 110 }], habitLog: [{ habitId: "old", status: "done" }] };
+    const f = toFormState(keep, "light", null, habits);
+    f.habits.eat_before_pc = { status: "no", detail: "", reason: " пізно прийшов ", extra: { what: "інше", atPc: "" } };
+    f.dayType = "duty"; f.partnerHere = "no"; f.nightEpisode = "yes"; f.episodeNote = "о третій"; f.energyAm = "2"; f.energyPm = "9";
+    const d = fromFormState("2026-11-11", f, now, { habits, keep, labels })!;
+    expect(d.habitLog).toEqual([{ habitId: "eat_before_pc", status: "no", reasonIfNo: "пізно прийшов", extra: { what: "інше" } }, { habitId: "old", status: "done" }]);
+    expect(d).toMatchObject({ dayType: "duty", partnerHere: false, nightEpisode: true, episodeNote: "о третій", energyAm: 2, bpEpisodes: keep.bpEpisodes });
+    expect(d.energyPm).toBeUndefined();
+    expect(toFormState(d, "light", null, habits).habits.eat_before_pc.reason).toBe("пізно прийшов");
+  });
+  it("marks the movement habit from a logged walk without asking", () => {
+    const f = toFormState(undefined, "light", null, habits);
+    f.walk = "20";
+    const d = fromFormState("2026-11-11", f, now, { habits, labels })!;
+    expect(d.habitLog).toEqual([{ habitId: "move_before_pc", status: "done", detail: "ходьба 20 хв (авто)" }]);
+    f.habits.move_before_pc.status = "min";
+    expect(fromFormState("2026-11-11", f, now, { habits, labels })!.habitLog![0]).toEqual({ habitId: "move_before_pc", status: "min" });
   });
 });

@@ -77,6 +77,10 @@ export function normalizeDay(raw: unknown, fallbackDate?: string): DayEntry | nu
   if (note) out.note = note;
   if (r.noWeight === true && out.weight == null) out.noWeight = true;
   if (r.ok === true && !out.flags) out.ok = true;
+  const feel = n(r.feel);
+  if (feel != null && feel >= 1 && feel <= 5) out.feel = Math.round(feel);
+  const positive = str(r.positive);
+  if (positive) out.positive = positive;
   return out;
 }
 

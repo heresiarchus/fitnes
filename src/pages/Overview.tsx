@@ -4,7 +4,9 @@ import { SyncBadge } from "../components/SyncBadge";
 import { StatGrid } from "../components/StatGrid";
 import { StepsChart } from "../components/StepsChart";
 import { WeightChart } from "../components/WeightChart";
+import { HabitsToday } from "../components/HabitsToday";
 import { Head } from "../components/Head";
+import { TasksCard } from "../components/TasksCard";
 import { PeriodNav } from "../components/PeriodNav";
 import { updateSettings } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
@@ -35,13 +37,16 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
           <span className="today-date">{new Date().toLocaleDateString(lang === "uk" ? "uk-UA" : "en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
         </div>
         <ul className="today-items">
-          <li><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmt(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></li>
+          {!settings.hideWeight && <li><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmt(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></li>}
           <li><span>{t("cal.day.steps")}</span><b>{td?.steps != null ? fmtInt(td.steps, lang) : t("today.none")}</b></li>
           <li><span>{t("cal.day.walk")}</span><b>{td?.walkMin ? `${td.walkMin} ${t("common.min")}` : t("today.none")}</b></li>
-          <li><span>{t("form.feeling")}</span><b>{td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></li>
+          <li><span>{t("form.feeling")}</span><b>{td?.feel != null ? `${td.feel} / 5` : td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></li>
         </ul>
         <Link className="btn block" to="/log">{td ? t("today.more") : t("today.fill")}</Link>
       </section>
+
+      <HabitsToday days={days} settings={settings} />
+      <TasksCard />
 
       <section className="block" aria-label={t("week.title")}>
         <PeriodNav

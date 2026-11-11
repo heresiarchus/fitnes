@@ -1,8 +1,13 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { SyncBadge } from "../components/SyncBadge";
-import { deleteAllDays, liveDays, saveDays, setSyncConfig, updateSettings, useSyncConfig } from "../db";
+import { Link } from "react-router-dom";
+import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useSheetsConfig, useSyncConfig } from "../db";
+import { parseHistory } from "../lib/history";
+import { isScriptUrl } from "../lib/sheets";
+import { sendSheets } from "../sync/sheets";
+import sheetsScript from "../../docs/google-sheets-script.gs?raw";
 import { type MessageKey, useI18n } from "../i18n";
 import { makeBackup, parseBackup } from "../lib/backup";
 import { downloadFile } from "../lib/download";
@@ -10,8 +15,9 @@ import { num } from "../lib/format";
 import { applySamsung, emptySamsung, parseSamsungFile } from "../lib/samsung";
 import { syncNow } from "../sync/engine";
 import { checkRepo, SyncError } from "../sync/github";
-import type { DaysMap, Lang, Phase, Settings, Theme } from "../lib/types";
-import { SOURCE_KEYS } from "../lib/types";
+import type { DaysMap, Habit, Lang, Phase, Settings, Theme } from "../lib/types";
+import { REMINDER_KINDS, SOURCE_KEYS } from "../lib/types";
+import { APK_URL, askNotifications, isNative, notificationsAllowed } from "../native";
 
 type Status = { text: string; kind?: "ok" | "err" };
 
@@ -27,6 +33,10 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const [token, setToken] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [syncMsg, setSyncMsg] = useState<Status>({ text: "" });
+  const [notifOk, setNotifOk] = useState(true);
+  useEffect(() => { if (isNative) void notificationsAllowed().then(setNotifOk); }, []);
+  const setReminder = (k: (typeof REMINDER_KINDS)[number], patch: Partial<{ on: boolean; time: string }>) =>
+    updateSettings({ reminders: { ...settings.reminders, [k]: { ...settings.reminders[k], ...patch } } });
   const count = Object.keys(days).length;
 
   function saveGoal(v: string) {
@@ -84,6 +94,50 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
     setSamsung({ text: parts.join(" "), kind: "ok" });
   }
 
+  const sheets = useSheetsConfig();
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [sheetMsg, setSheetMsg] = useState<Status>({ text: "" });
+  const [scriptCopied, setScriptCopied] = useState(false);
+  async function sendNow() {
+    setSheetMsg({ text: "…" });
+    const r = await sendSheets();
+    setSheetMsg({ text: t(`sheets.res.${r === "off" ? "error" : r}` as MessageKey), kind: r === "ok" ? "ok" : r === "error" || r === "off" ? "err" : undefined });
+  }
+  async function connectSheets() {
+    const url = sheetUrl.trim();
+    if (!isScriptUrl(url)) { setSheetMsg({ text: t("sheets.badUrl"), kind: "err" }); return; }
+    await setSheetsConfig({ url });
+    setSheetUrl("");
+    await sendNow();
+  }
+  async function copyScript() {
+    try { await navigator.clipboard.writeText(sheetsScript); setScriptCopied(true); setTimeout(() => setScriptCopied(false), 2500); }
+    catch { downloadFile("google-sheets-script.txt", sheetsScript, "text/plain;charset=utf-8"); }
+  }
+  const sheetTime = sheets?.lastSentAt ? new Date(sheets.lastSentAt).toLocaleString(settings.lang === "uk" ? "uk-UA" : "en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : null;
+
+  const histRef = useRef<HTMLInputElement>(null);
+  async function importHistory(files: FileList) {
+    let w = 0, m = 0, bad = 0;
+    let current = days;
+    for (const file of Array.from(files)) {
+      try {
+        const r = parseHistory(await file.text(), current);
+        await saveDays(r.days);
+        await saveItems(r.months);
+        current = { ...current, ...Object.fromEntries(r.days.map((d) => [d.date, d])) };
+        w += r.days.length; m += r.months.length;
+      } catch { bad += 1; }
+    }
+    if (histRef.current) histRef.current.value = "";
+    setStatus(bad && !w && !m ? { text: t("hist.importError"), kind: "err" } : { text: t("hist.imported", { w, m }), kind: "ok" });
+  }
+
+  const setHabit = (id: string, patch: Partial<Habit>) =>
+    updateSettings({ habits: settings.habits.map((h) => (h.id === id ? { ...h, ...patch } : h)) });
+  const addHabit = () =>
+    updateSettings({ habits: [...settings.habits, { id: newId("habit"), title: "", minVersion: "", enabled: true, activeFrom: new Date().toISOString().slice(0, 10), remind: null }] });
+
   async function connect() {
     const r = repo.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/+$/, "");
     if (!/^[\w.-]+\/[\w.-]+$/.test(r)) { setSyncMsg({ text: t("sync.badRepo"), kind: "err" }); return; }
@@ -110,7 +164,10 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
 
   return (
     <>
-      <header className="page-head"><h1>{t("settings.title")}</h1></header>
+      <header className="page-head">
+        <h1>{t("nav.more")}</h1>
+        <Link className="btn block" to="/reports">{t("more.reports")} →</Link>
+      </header>
 
       <section className="block">
         <Head title={t("sync.title")} help={t("sync.intro")} />
@@ -146,6 +203,105 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </>
         )}
         {syncMsg.text && <p className={"status " + (syncMsg.kind ?? "")} role="status">{syncMsg.text}</p>}
+      </section>
+
+      <section className="block">
+        <Head title={t("sheets.title")} help={t("sheets.help")} />
+        <span className={"status" + (sheets?.lastError ? " err" : sheets?.lastSentAt ? " ok" : "")} role="status">
+          {!sheets ? t("sheets.state.off") : sheets.lastError ? t("sheets.state.error", { e: sheets.lastError }) : sheetTime ? t("sheets.state.sent", { t: sheetTime }) : t("sheets.state.never")}
+        </span>
+        {sheets ? (
+          <div className="actions">
+            <button type="button" className="primary" onClick={sendNow}>{t("sheets.send")}</button>
+            <button type="button" className="danger" onClick={() => { void setSheetsConfig(null); setSheetMsg({ text: "" }); }}>{t("sheets.disconnect")}</button>
+          </div>
+        ) : (
+          <>
+            <Head as="label" title={null} helpLabel={t("sheets.how")} help={(
+              <ol className="steps-list">
+                <li>{t("sheets.step1")}</li>
+                <li>{t("sheets.step2")}</li>
+                <li>{t("sheets.step3")}</li>
+                <li>{t("sheets.step4")}</li>
+              </ol>
+            )} />
+            <div className="actions"><button type="button" onClick={copyScript}>{scriptCopied ? t("reports.copied") : t("sheets.copyScript")}</button></div>
+            <label className="field"><span>{t("sheets.url")}</span>
+              <input type="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="https://script.google.com/macros/s/…/exec" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} />
+            </label>
+            <div className="actions"><button type="button" className="primary" onClick={connectSheets} disabled={!sheetUrl.trim()}>{t("sheets.connect")}</button></div>
+          </>
+        )}
+        {sheetMsg.text && <span className={"status " + (sheetMsg.kind ?? "")} role="status">{sheetMsg.text}</span>}
+      </section>
+
+      <section className="block">
+        <Head title={t("habit.manage")} help={t("habit.manageHelp")} />
+        <div className="ex-list">
+          {settings.habits.map((h) => (
+            <details className="ex-card" key={h.id}>
+              <summary>
+                <span className="ex-name"><b>{h.title || t("habit.name")}</b></span>
+                <span className={"ex-sum" + (h.enabled ? " set" : "")}>{t(h.enabled ? "habit.on" : "habit.off")}</span>
+              </summary>
+              <div className="habit-edit">
+                <div className="seg full" role="radiogroup" aria-label={h.title}>
+                  <button type="button" role="radio" aria-checked={h.enabled} className={h.enabled ? "on" : ""} onClick={() => setHabit(h.id, { enabled: true, activeFrom: h.activeFrom ?? new Date().toISOString().slice(0, 10) })}>{t("habit.on")}</button>
+                  <button type="button" role="radio" aria-checked={!h.enabled} className={!h.enabled ? "on" : ""} onClick={() => setHabit(h.id, { enabled: false })}>{t("habit.off")}</button>
+                </div>
+                <label className="field"><span>{t("habit.name")}</span>
+                  <input type="text" maxLength={80} defaultValue={h.title} onBlur={(e) => e.target.value !== h.title && setHabit(h.id, { title: e.target.value.trim() })} />
+                </label>
+                <label className="field"><span>{t("habit.minVersion")}</span>
+                  <input type="text" maxLength={120} defaultValue={h.minVersion} onBlur={(e) => e.target.value !== h.minVersion && setHabit(h.id, { minVersion: e.target.value.trim() })} />
+                </label>
+                <div className="fields two">
+                  <label className="field"><span>{t("habit.remind")}</span>
+                    <input type="time" value={h.remind?.from ?? ""} onChange={(e) => setHabit(h.id, { remind: e.target.value ? { from: e.target.value, until: h.remind?.until ?? "21:30", everyMin: h.remind?.everyMin ?? 25 } : null })} />
+                  </label>
+                  <label className="field"><span>{t("habit.remindUntil")}</span>
+                    <input type="time" value={h.remind?.until ?? ""} disabled={!h.remind} onChange={(e) => h.remind && e.target.value && setHabit(h.id, { remind: { ...h.remind, until: e.target.value } })} />
+                  </label>
+                </div>
+                {h.remind && <button type="button" className="link" onClick={() => setHabit(h.id, { remind: null })}>{t("habit.noRemind")}</button>}
+              </div>
+            </details>
+          ))}
+        </div>
+        <button type="button" className="link" onClick={addHabit}>{t("habit.add")}</button>
+      </section>
+
+      <section className="block">
+        <Head title={t("remind.title")} help={<>{t("remind.help")} {isNative ? t("remind.widgetHint") : ""}</>} />
+        {!isNative && (
+          <>
+            <p className="help-text">{t("remind.webOnly")}</p>
+            <a className="btn primary block" href={APK_URL}>{t("remind.getApk")}</a>
+          </>
+        )}
+        {isNative && !notifOk && (
+          <>
+            <p className="status err" style={{ margin: 0 }}>{t("remind.denied")}</p>
+            <div className="actions"><button type="button" className="primary" onClick={() => void askNotifications().then(setNotifOk)}>{t("remind.allow")}</button></div>
+          </>
+        )}
+        <div className="src-list">
+          {REMINDER_KINDS.map((k) => {
+            const r = settings.reminders[k];
+            return (
+              <div className="src-row" key={k}>
+                <span>{t(`remind.${k}` as MessageKey)}</span>
+                <div className="remind-ctl">
+                  <div className="seg full" role="radiogroup" aria-label={t(`remind.${k}` as MessageKey)}>
+                    <button type="button" role="radio" aria-checked={r.on} className={r.on ? "on" : ""} onClick={() => setReminder(k, { on: true })}>{t("remind.on")}</button>
+                    <button type="button" role="radio" aria-checked={!r.on} className={!r.on ? "on" : ""} onClick={() => setReminder(k, { on: false })}>{t("remind.off")}</button>
+                  </div>
+                  <input type="time" aria-label={t("remind.time")} value={r.time} disabled={!r.on} onChange={(e) => e.target.value && setReminder(k, { time: e.target.value })} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section className="block">
@@ -192,6 +348,12 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
             </select>
           </label>
         </div>
+        <div className="field"><span>{t("settings.hideWeight")}</span>
+          <div className="seg full" role="radiogroup" aria-label={t("settings.hideWeight")}>
+            <button type="button" role="radio" aria-checked={!settings.hideWeight} className={!settings.hideWeight ? "on" : ""} onClick={() => updateSettings({ hideWeight: false })}>{t("settings.hideWeight.show")}</button>
+            <button type="button" role="radio" aria-checked={settings.hideWeight} className={settings.hideWeight ? "on" : ""} onClick={() => updateSettings({ hideWeight: true })}>{t("settings.hideWeight.hide")}</button>
+          </div>
+        </div>
       </section>
 
       <section className="block">
@@ -218,11 +380,13 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <Head title={t("settings.data")} help={t("settings.dataHint")} right={<span className="status num">{t("settings.count", { n: count })}</span>} />
+        <Head title={t("settings.data")} help={<>{t("settings.dataHint")} {t("data.format")}</>} right={<span className="status num">{t("settings.count", { n: count })}</span>} />
         <div className="actions">
           <button type="button" onClick={exportJson}>{t("settings.backup")}</button>
           <button type="button" onClick={() => fileRef.current?.click()}>{t("settings.import")}</button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} />
+          <button type="button" onClick={() => histRef.current?.click()}>{t("hist.import")}</button>
+          <input ref={histRef} type="file" accept=".csv,text/csv,text/comma-separated-values" multiple hidden onChange={(e) => e.target.files?.length && importHistory(e.target.files)} />
           <button type="button" className="danger" onClick={clearAll} disabled={!count}>{t("settings.clear")}</button>
         </div>
         {status.text && <p className={"status " + (status.kind ?? "")} role="status">{status.text}</p>}
