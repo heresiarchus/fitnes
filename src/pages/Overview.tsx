@@ -40,7 +40,7 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
           {!settings.hideWeight && <li><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmt(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></li>}
           <li><span>{t("cal.day.steps")}</span><b>{td?.steps != null ? fmtInt(td.steps, lang) : t("today.none")}</b></li>
           <li><span>{t("cal.day.walk")}</span><b>{td?.walkMin ? `${td.walkMin} ${t("common.min")}` : t("today.none")}</b></li>
-          <li><span>{t("form.feeling")}</span><b>{td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></li>
+          <li><span>{t("form.feeling")}</span><b>{td?.feel != null ? `${td.feel} / 5` : td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></li>
         </ul>
         <Link className="btn block" to="/log">{td ? t("today.more") : t("today.fill")}</Link>
       </section>

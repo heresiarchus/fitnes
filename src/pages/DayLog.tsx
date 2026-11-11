@@ -7,7 +7,7 @@ import { HabitMarker } from "../components/HabitMarker";
 import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { WeightPicker } from "../components/WeightPicker";
-import { deleteDay, saveDay } from "../db";
+import { deleteDay, deleteItem, saveDay, saveItem, useItems } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import { addDays, ddmm, iso, parseIso } from "../lib/date";
 import { type DayFormState, fromFormState, missingRequired, type SetRow, toFormState } from "../lib/dayForm";
@@ -57,6 +57,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
   const navigate = useNavigate();
   const prevW = previousWeight(days, date);
   const habits = activeHabits(settings.habits, date);
+  const diary = useItems("diary");
   const [f, setF] = useState<DayFormState>(() => toFormState(entry, settings.phase === "1" ? "light" : "moderate", prevW?.weight ?? null, habits));
   const nowHm = () => new Date().toTimeString().slice(0, 5);
   /** Confirms the weight; for today's entry also notes the time of the weigh-in. */
@@ -81,11 +82,6 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
   const setBp = (slot: BpSlot, k: "sys" | "dia" | "pulse", v: string) => setF((p) => ({ ...p, bp: { ...p.bp, [slot]: { ...p.bp[slot], [k]: v } } }));
   const setPain = (a: PainArea, v: string) => setF((p) => ({ ...p, pain: { ...p.pain, [a]: v } }));
   const toggleFlag = (fl: Flag) => setF((p) => ({ ...p, ok: false, flags: p.flags.includes(fl) ? p.flags.filter((x) => x !== fl) : [...p.flags, fl] }));
-  /** One tap: no warning signs, and pain 0 wherever it wasn't set. */
-  const allOk = () => setF((p) => ({
-    ...p, ok: true, flags: [],
-    pain: Object.fromEntries(PAIN_AREAS.map((a) => [a, p.pain[a] === "" ? "0" : p.pain[a]])) as DayFormState["pain"],
-  }));
   const weightRef = useRef<HTMLFieldSetElement>(null);
   const feelingRef = useRef<HTMLFieldSetElement>(null);
   const [checked, setChecked] = useState(false);
@@ -137,6 +133,12 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
     setSaving(true);
     try {
       await saveDay(data);
+      // The day's good thing also lives in the diary, so it reaches the therapist export.
+      const id = "dd-" + date;
+      const existing = diary?.find((x) => x.id === id);
+      if (data.positive) {
+        if (existing?.event !== data.positive) await saveItem({ id, kind: "diary", date, event: data.positive, share: existing?.share ?? false, createdAt: existing?.createdAt ?? new Date().toISOString(), updatedAt: "" });
+      } else if (existing) await deleteItem(existing);
       setStatus({ text: t("form.saved", { d: ddmm(date) }), kind: "ok" });
     } catch (err) {
       setStatus({ text: t("form.error", { e: (err as Error).message }), kind: "err" });
@@ -296,10 +298,18 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
         </fieldset>
 
         <fieldset ref={feelingRef} className={missing.includes("feeling") ? "need" : ""}>
-          <Head as="legend" title={<>{t("form.feeling")}<span className="req">{t("form.required")}</span></>} />
-          <div className="actions">
-            <button type="button" className={f.ok && !f.flags.length ? "primary" : ""} aria-pressed={f.ok && !f.flags.length} onClick={allOk}>✓ {t("form.allOk")}</button>
-          </div>
+          <Head as="legend" title={<>{t("form.feel")}<span className="req">{t("form.required")}</span></>} help={t("form.feelHelp")} />
+          <ChipScale value={f.feel} onChange={(v) => set("feel", v)} values={[1, 2, 3, 4, 5]} label={t("form.feel")} clearable={false} />
+          <div className="scale-ends"><span>{t("form.feel.1")}</span><span>{t("form.feel.5")}</span></div>
+          {missing.includes("feeling") && <p className="status err" style={{ margin: 0 }}>{t("form.needFeeling")}</p>}
+          <label className="field"><span>{t("form.positive")}</span>
+            <textarea className="short" maxLength={500} value={f.positive} placeholder={t("form.positivePh")} onChange={(e) => set("positive", e.target.value)} />
+          </label>
+        </fieldset>
+
+        <details>
+          <summary>{t("form.body")}</summary>
+          <div className="ctx">
           {PAIN_AREAS.map((a) => (
             <div className="field" key={a}>
               <span>{t(`form.pain.${a}` as MessageKey)}</span>
@@ -311,10 +321,10 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
               <label key={fl}><input type="checkbox" checked={f.flags.includes(fl)} onChange={() => toggleFlag(fl)} /> {t(`form.flag.${fl}` as MessageKey)}</label>
             ))}
           </div>
-          {missing.includes("feeling") && <p className="status err" style={{ margin: 0 }}>{t("form.needFeeling")}</p>}
           {heart && <div className="alert" role="alert"><b>{t("form.alertHeartTitle")}</b> {t("form.alertHeart")}</div>}
           {foot && <div className="alert" role="alert"><b>{t("form.alertFootTitle")}</b> {t("form.alertFoot")}</div>}
-        </fieldset>
+        </div>
+        </details>
 
         <details>
           <summary>{t("ctx.title")}</summary>

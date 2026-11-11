@@ -2,10 +2,10 @@ import Dexie, { type EntityTable } from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo } from "react";
 import { DEFAULT_HABITS } from "./lib/habits";
-import type { DayEntry, DaysMap, Item, Settings, SyncConfig } from "./lib/types";
+import type { DayEntry, DaysMap, Item, Settings, SheetsConfig, SyncConfig } from "./lib/types";
 
 interface SettingsRow extends Settings { key: "main" }
-interface MetaRow { key: "sync"; value: SyncConfig }
+type MetaRow = { key: "sync"; value: SyncConfig } | { key: "sheets"; value: SheetsConfig };
 
 export const db = new Dexie("fitnes") as Dexie & {
   days: EntityTable<DayEntry, "date">;
@@ -122,7 +122,7 @@ export async function deleteAllDays() {
 }
 
 export async function getSyncConfig(): Promise<SyncConfig | undefined> {
-  return (await db.meta.get("sync"))?.value;
+  return (await db.meta.get("sync"))?.value as SyncConfig | undefined;
 }
 
 export async function setSyncConfig(value: SyncConfig | null) {
@@ -131,7 +131,7 @@ export async function setSyncConfig(value: SyncConfig | null) {
 }
 
 export function useSyncConfig(): SyncConfig | null | undefined {
-  return useLiveQuery(async () => (await db.meta.get("sync"))?.value ?? null, []);
+  return useLiveQuery(async () => ((await db.meta.get("sync"))?.value as SyncConfig | undefined) ?? null, []);
 }
 
 /** Live (not deleted) items of one kind; undefined while loading. */
@@ -159,4 +159,17 @@ export async function deleteItem(item: Item) {
   // Keep a tombstone so the deletion reaches other devices.
   await db.items.put({ id: item.id, kind: item.kind, deleted: true, updatedAt: new Date().toISOString() } as Item);
   changed();
+}
+
+export async function getSheetsConfig(): Promise<SheetsConfig | undefined> {
+  return (await db.meta.get("sheets"))?.value as SheetsConfig | undefined;
+}
+
+export async function setSheetsConfig(value: SheetsConfig | null) {
+  if (value) await db.meta.put({ key: "sheets", value });
+  else await db.meta.delete("sheets");
+}
+
+export function useSheetsConfig(): SheetsConfig | null | undefined {
+  return useLiveQuery(async () => ((await db.meta.get("sheets"))?.value as SheetsConfig | undefined) ?? null, []);
 }

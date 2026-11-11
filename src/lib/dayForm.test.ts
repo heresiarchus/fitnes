@@ -36,11 +36,13 @@ describe("day form conversion", () => {
     f.steps = "100";
     expect(fromFormState("2026-11-11", f, now)?.weight).toBeUndefined();
     f.weightChoice = "yes";
-    f.ok = true;
+    f.feel = "4";
+    f.positive = " прогулявся ";
     expect(missingRequired(f)).toEqual([]);
     const saved = fromFormState("2026-11-11", f, now)!;
     expect(saved.weight).toBe(130.5);
-    expect(saved.ok).toBe(true);
+    expect(saved.feel).toBe(4);
+    expect(saved.positive).toBe("прогулявся");
     f.weightChoice = "no";
     const skipped = fromFormState("2026-11-11", f, now)!;
     expect(skipped.weight).toBeUndefined();

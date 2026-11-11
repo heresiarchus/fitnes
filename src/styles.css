@@ -306,6 +306,9 @@ svg .k-bike, .legend .k-bike { fill: var(--muted); background: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
+.scale-ends { display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--muted); margin-top: -4px; }
+textarea.short { min-height: 60px; }
+
 /* Calendar */
 .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .cal-wd { text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--muted); padding-bottom: 2px; }

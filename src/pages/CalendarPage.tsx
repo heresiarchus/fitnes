@@ -207,6 +207,8 @@ function DayDetail({ date, day, settings }: { date: string; day: DayEntry | unde
     ].filter(Boolean);
     if (ctx.length) rows.push([t("cal.day.context"), ctx.join(" · ")]);
     if (day.energyAm != null || day.energyPm != null) rows.push([t("cal.day.energy"), `${day.energyAm ?? "—"} / ${day.energyPm ?? "—"}`]);
+    if (day.feel != null) rows.push([t("form.feel"), `${day.feel} / 5`]);
+    if (day.positive) rows.push([t("form.positive"), day.positive]);
     if (day.note) rows.push([t("cal.day.note"), day.note]);
   }
   return (

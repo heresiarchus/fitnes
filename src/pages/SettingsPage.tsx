@@ -3,8 +3,11 @@ import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { SyncBadge } from "../components/SyncBadge";
 import { Link } from "react-router-dom";
-import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSyncConfig, updateSettings, useSyncConfig } from "../db";
+import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useSheetsConfig, useSyncConfig } from "../db";
 import { parseHistory } from "../lib/history";
+import { isScriptUrl } from "../lib/sheets";
+import { sendSheets } from "../sync/sheets";
+import sheetsScript from "../../docs/google-sheets-script.gs?raw";
 import { type MessageKey, useI18n } from "../i18n";
 import { makeBackup, parseBackup } from "../lib/backup";
 import { downloadFile } from "../lib/download";
@@ -90,6 +93,28 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
     if (bad) parts.push(t("samsung.badFiles", { n: bad }));
     setSamsung({ text: parts.join(" "), kind: "ok" });
   }
+
+  const sheets = useSheetsConfig();
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [sheetMsg, setSheetMsg] = useState<Status>({ text: "" });
+  const [scriptCopied, setScriptCopied] = useState(false);
+  async function sendNow() {
+    setSheetMsg({ text: "…" });
+    const r = await sendSheets();
+    setSheetMsg({ text: t(`sheets.res.${r === "off" ? "error" : r}` as MessageKey), kind: r === "ok" ? "ok" : r === "error" || r === "off" ? "err" : undefined });
+  }
+  async function connectSheets() {
+    const url = sheetUrl.trim();
+    if (!isScriptUrl(url)) { setSheetMsg({ text: t("sheets.badUrl"), kind: "err" }); return; }
+    await setSheetsConfig({ url });
+    setSheetUrl("");
+    await sendNow();
+  }
+  async function copyScript() {
+    try { await navigator.clipboard.writeText(sheetsScript); setScriptCopied(true); setTimeout(() => setScriptCopied(false), 2500); }
+    catch { downloadFile("google-sheets-script.txt", sheetsScript, "text/plain;charset=utf-8"); }
+  }
+  const sheetTime = sheets?.lastSentAt ? new Date(sheets.lastSentAt).toLocaleString(settings.lang === "uk" ? "uk-UA" : "en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : null;
 
   const histRef = useRef<HTMLInputElement>(null);
   async function importHistory(files: FileList) {
@@ -178,6 +203,36 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </>
         )}
         {syncMsg.text && <p className={"status " + (syncMsg.kind ?? "")} role="status">{syncMsg.text}</p>}
+      </section>
+
+      <section className="block">
+        <Head title={t("sheets.title")} help={t("sheets.help")} />
+        <span className={"status" + (sheets?.lastError ? " err" : sheets?.lastSentAt ? " ok" : "")} role="status">
+          {!sheets ? t("sheets.state.off") : sheets.lastError ? t("sheets.state.error", { e: sheets.lastError }) : sheetTime ? t("sheets.state.sent", { t: sheetTime }) : t("sheets.state.never")}
+        </span>
+        {sheets ? (
+          <div className="actions">
+            <button type="button" className="primary" onClick={sendNow}>{t("sheets.send")}</button>
+            <button type="button" className="danger" onClick={() => { void setSheetsConfig(null); setSheetMsg({ text: "" }); }}>{t("sheets.disconnect")}</button>
+          </div>
+        ) : (
+          <>
+            <Head as="label" title={null} helpLabel={t("sheets.how")} help={(
+              <ol className="steps-list">
+                <li>{t("sheets.step1")}</li>
+                <li>{t("sheets.step2")}</li>
+                <li>{t("sheets.step3")}</li>
+                <li>{t("sheets.step4")}</li>
+              </ol>
+            )} />
+            <div className="actions"><button type="button" onClick={copyScript}>{scriptCopied ? t("reports.copied") : t("sheets.copyScript")}</button></div>
+            <label className="field"><span>{t("sheets.url")}</span>
+              <input type="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="https://script.google.com/macros/s/…/exec" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} />
+            </label>
+            <div className="actions"><button type="button" className="primary" onClick={connectSheets} disabled={!sheetUrl.trim()}>{t("sheets.connect")}</button></div>
+          </>
+        )}
+        {sheetMsg.text && <span className={"status " + (sheetMsg.kind ?? "")} role="status">{sheetMsg.text}</span>}
       </section>
 
       <section className="block">
@@ -325,7 +380,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <Head title={t("settings.data")} help={t("settings.dataHint")} right={<span className="status num">{t("settings.count", { n: count })}</span>} />
+        <Head title={t("settings.data")} help={<>{t("settings.dataHint")} {t("data.format")}</>} right={<span className="status num">{t("settings.count", { n: count })}</span>} />
         <div className="actions">
           <button type="button" onClick={exportJson}>{t("settings.backup")}</button>
           <button type="button" onClick={() => fileRef.current?.click()}>{t("settings.import")}</button>

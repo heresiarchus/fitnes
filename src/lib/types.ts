@@ -48,6 +48,10 @@ export interface DayEntry {
   partnerHere?: boolean;
   nightEpisode?: boolean;
   episodeNote?: string;
+  /** How the day felt overall, 1 (bad) – 5 (great). */
+  feel?: number;
+  /** One good thing about the day, in the user's words. */
+  positive?: string;
   /** Energy 1–5, morning and evening. */
   energyAm?: number;
   energyPm?: number;
@@ -87,6 +91,13 @@ export type Reminders = Record<ReminderKind, { on: boolean; time: string }>;
 
 export type SourceKey = "steps" | "exercise" | "weight" | "bp";
 export const SOURCE_KEYS: SourceKey[] = ["steps", "exercise", "weight", "bp"];
+
+export interface SheetsConfig {
+  /** Address of the Apps Script web app bound to the user's Google Sheet. */
+  url: string;
+  lastSentAt?: string;
+  lastError?: string;
+}
 
 export interface SyncConfig {
   provider: "github";

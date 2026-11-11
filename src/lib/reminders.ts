@@ -17,7 +17,7 @@ export function isDone(kind: ReminderKind, days: DaysMap, date: string): boolean
   const d = days[date];
   if (kind === "review" || !d) return false;
   if (kind === "weigh") return d.weight != null || !!d.noWeight;
-  if (kind === "evening") return !!d.ok || !!d.flags?.length;
+  if (kind === "evening") return d.feel != null || !!d.ok || !!d.flags?.length;
   return !!(d.bp?.e1 || d.bp?.e2);
 }
 

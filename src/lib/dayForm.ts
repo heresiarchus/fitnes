@@ -19,6 +19,8 @@ export interface DayFormState {
   weightChoice: "pending" | "yes" | "no";
   /** "No warning signs" was confirmed. */
   ok: boolean;
+  feel: string;
+  positive: string;
   weightTime: string;
   habits: Record<string, HabitRow>;
   dayType: DayType | "";
@@ -69,6 +71,8 @@ export function toFormState(d: DayEntry | undefined, defaultWalk: WalkIntensity,
     weight: d?.weight != null ? s(d.weight) : s(prevWeight),
     weightChoice: d?.weight != null ? "yes" : d?.noWeight ? "no" : "pending",
     ok: !!d?.ok,
+    feel: s(d?.feel),
+    positive: d?.positive ?? "",
     weightTime: d?.weightTime ?? "",
     habits: habitRows,
     dayType: d?.dayType ?? "",
@@ -155,6 +159,10 @@ export function fromFormState(date: string, f: DayFormState, now = new Date(), o
   if (Object.keys(pain).length) out.pain = pain;
   if (f.flags.length) out.flags = FLAGS.filter((x) => f.flags.includes(x));
   else if (f.ok) out.ok = true;
+  const feel = num(f.feel);
+  if (feel != null && feel >= 1 && feel <= 5) out.feel = Math.round(feel);
+  const positive = f.positive.trim();
+  if (positive) out.positive = positive;
   const note = f.note.trim();
   if (note) out.note = note;
   if (opt.keep?.bpEpisodes?.length) out.bpEpisodes = opt.keep.bpEpisodes;
@@ -200,6 +208,7 @@ export type MissingField = "weight" | "feeling";
 export function missingRequired(f: DayFormState): MissingField[] {
   const out: MissingField[] = [];
   if (f.weightChoice === "pending") out.push("weight");
-  if (!f.ok && !f.flags.length) out.push("feeling");
+  // Answered by the 1–5 rating; older entries answered it with "all good" or a warning sign.
+  if (!f.feel && !f.ok && !f.flags.length) out.push("feeling");
   return out;
 }
