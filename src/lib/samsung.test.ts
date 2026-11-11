@@ -56,7 +56,7 @@ describe("Samsung Health other export files", () => {
     expect(() => parseSamsungFile("a,b\n1,2", data)).toThrow();
 
     const existing = { "2026-11-10": { date: "2026-11-10", updatedAt: "old", note: "keep", walkIntensity: "moderate" as const, noWeight: true as const } };
-    const all = { steps: true, exercise: true, weight: true, bp: true };
+    const all = { steps: true, exercise: true, weight: true, bp: true, sleep: true };
     const r = applySamsung(existing, data, all, (k) => "name:" + k, new Date("2026-11-12T00:00:00Z"));
     const d10 = r.changes.find((d) => d.date === "2026-11-10")!;
     expect(d10).toMatchObject({
@@ -69,7 +69,7 @@ describe("Samsung Health other export files", () => {
     expect(r.changes.find((d) => d.date === "2026-11-11")).toMatchObject({ walkMin: 10, walkIntensity: "light" });
     expect(r.counts).toEqual({ steps: 0, exercise: 2, weight: 1, bp: 1 });
 
-    const onlyWalk = applySamsung(existing, data, { steps: true, exercise: true, weight: false, bp: false }, (k) => k);
+    const onlyWalk = applySamsung(existing, data, { steps: true, exercise: true, weight: false, bp: false, sleep: false }, (k) => k);
     expect(onlyWalk.changes.find((d) => d.date === "2026-11-10")!.weight).toBeUndefined();
     expect(onlyWalk.counts.bp).toBe(0);
 

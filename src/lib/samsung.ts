@@ -79,14 +79,18 @@ export function parseSamsungSteps(text: string): Record<string, number> {
 // ---------- Other Samsung Health export files ----------
 
 
-export type SamsungKind = SourceKey;
+export type SamsungKind = Exclude<SourceKey, "sleep">;
 
-export interface SamsungExercise { date: string; type: number; minutes: number }
+/** One workout: walking counts towards walk minutes, anything else towards cardio. */
+export interface SamsungExercise { date: string; minutes: number; walk: boolean; cardio?: string }
 export interface SamsungWeight { date: string; hour: number; weight: number; time: number }
 export interface SamsungBp { date: string; hour: number; time: number; sys: number; dia: number; pulse: number | null }
 
 export interface SamsungData {
   steps: Record<string, number>;
+  /** Night sleep by wake-up date and resting pulse by date (from Health Connect only). */
+  sleep?: Record<string, { minutes: number; start?: string; end?: string }>;
+  restingHr?: Record<string, number>;
   exercise: SamsungExercise[];
   weight: SamsungWeight[];
   bp: SamsungBp[];
@@ -136,7 +140,7 @@ export function parseSamsungFile(text: string, into: SamsungData): SamsungKind {
       const ms = Number(r[iD]);
       const type = Number(r[iT]);
       if (!lt || !Number.isFinite(ms) || ms <= 0 || !Number.isFinite(type)) continue;
-      into.exercise.push({ date: lt.date, type, minutes: ms / 60000 });
+      into.exercise.push({ date: lt.date, minutes: ms / 60000, walk: WALK_TYPES.has(type), cardio: CARDIO_TYPES[type] });
     }
     return add("exercise");
   }
@@ -195,8 +199,8 @@ export function applySamsung(
     const byDay = new Map<string, { walk: number; cardio: number; kinds: Set<string> }>();
     for (const e of data.exercise) {
       const a = byDay.get(e.date) ?? { walk: 0, cardio: 0, kinds: new Set<string>() };
-      if (WALK_TYPES.has(e.type)) a.walk += e.minutes;
-      else { a.cardio += e.minutes; a.kinds.add(CARDIO_TYPES[e.type] ?? "other"); }
+      if (e.walk) a.walk += e.minutes;
+      else { a.cardio += e.minutes; a.kinds.add(e.cardio ?? "other"); }
       byDay.set(e.date, a);
     }
     for (const [date, a] of byDay) {
@@ -236,6 +240,23 @@ export function applySamsung(
       const d = get(date);
       const merged = { ...(d.bp ?? {}), ...bp };
       if (JSON.stringify(merged) !== JSON.stringify(d.bp ?? {})) { d.bp = merged; put("bp", d); }
+    }
+  }
+
+  if (sources.sleep) {
+    for (const [date, v] of Object.entries(data.sleep ?? {})) {
+      const d = get(date);
+      const minutes = Math.round(v.minutes);
+      if (minutes > 0 && (d.sleepMin !== minutes || d.sleepStart !== v.start || d.sleepEnd !== v.end)) {
+        d.sleepMin = minutes;
+        if (v.start) d.sleepStart = v.start;
+        if (v.end) d.sleepEnd = v.end;
+        next.set(date, d);
+      }
+    }
+    for (const [date, hr] of Object.entries(data.restingHr ?? {})) {
+      const d = get(date);
+      if (hr > 0 && d.restingHr !== Math.round(hr)) { d.restingHr = Math.round(hr); next.set(date, d); }
     }
   }
 

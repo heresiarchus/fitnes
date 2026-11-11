@@ -48,6 +48,11 @@ export interface DayEntry {
   partnerHere?: boolean;
   nightEpisode?: boolean;
   episodeNote?: string;
+  /** Night sleep ending on this date, from the watch. */
+  sleepMin?: number;
+  sleepStart?: string;
+  sleepEnd?: string;
+  restingHr?: number;
   /** How the day felt overall, 1 (bad) – 5 (great). */
   feel?: number;
   /** One good thing about the day, in the user's words. */
@@ -89,8 +94,8 @@ export type ReminderKind = "weigh" | "evening" | "bp" | "review";
 export const REMINDER_KINDS: ReminderKind[] = ["weigh", "evening", "bp", "review"];
 export type Reminders = Record<ReminderKind, { on: boolean; time: string }>;
 
-export type SourceKey = "steps" | "exercise" | "weight" | "bp";
-export const SOURCE_KEYS: SourceKey[] = ["steps", "exercise", "weight", "bp"];
+export type SourceKey = "steps" | "exercise" | "weight" | "bp" | "sleep";
+export const SOURCE_KEYS: SourceKey[] = ["steps", "exercise", "weight", "bp", "sleep"];
 
 export interface SheetsConfig {
   /** Address of the Apps Script web app bound to the user's Google Sheet. */

@@ -29,6 +29,7 @@ export function buildSheets(days: DayEntry[], items: Item[], habits: Habit[], no
     d.date, c(d.weight), c(d.weightCond), c(d.weightTime), c(d.steps), c(d.walkMin), c(d.walkIntensity), c(d.cardioMin), c(d.cardioWhat),
     c(d.pain?.foot), c(d.pain?.back), c(d.pain?.shoulder), (d.flags ?? []).join(" "), c(d.feel), sharedPositive.has(d.date) ? c(d.positive) : "", c(d.note),
     c(d.dayType), yn(d.partnerHere), yn(d.nightEpisode), c(d.episodeNote), c(d.energyAm), c(d.energyPm), d.noWeight ? "yes" : "", d.updatedAt,
+    c(d.sleepMin), c(d.sleepStart), c(d.sleepEnd), c(d.restingHr),
   ]);
 
   const strength: Cell[][] = [];
@@ -57,8 +58,9 @@ export function buildSheets(days: DayEntry[], items: Item[], habits: Habit[], no
       "Дні": table(
         ["date", "weight", "weightCond", "weightTime", "steps", "walkMin", "walkIntensity", "cardioMin", "cardioWhat",
           "painFoot", "painBack", "painShoulder", "flags", "feel", "positive", "note",
-          "dayType", "partnerHere", "nightEpisode", "episodeNote", "energyAm", "energyPm", "noWeight", "updatedAt"],
-        ["date", "weightTime", "cardioWhat", "flags", "positive", "note", "episodeNote", "updatedAt"], dayRows),
+          "dayType", "partnerHere", "nightEpisode", "episodeNote", "energyAm", "energyPm", "noWeight", "updatedAt",
+          "sleepMin", "sleepStart", "sleepEnd", "restingHr"],
+        ["date", "weightTime", "cardioWhat", "flags", "positive", "note", "episodeNote", "updatedAt", "sleepStart", "sleepEnd"], dayRows),
       "Силова": table(["date", "exercise", "sets", "reps", "kg"], ["date", "exercise"], strength),
       "Тиск": table(["date", "slot", "time", "sys", "dia", "pulse", "episode"], ["date", "time"], bp),
       "Звички": table(["date", "habitId", "status", "detail", "reasonIfNo", ...extraKeys], ["date", "detail", "reasonIfNo", ...extraKeys], habitRows),
