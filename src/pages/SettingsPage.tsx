@@ -212,7 +212,6 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         </span>
         {sheets ? (
           <div className="actions">
-            <button type="button" className="primary" onClick={sendNow}>{t("sheets.send")}</button>
             <button type="button" className="danger" onClick={() => { void setSheetsConfig(null); setSheetMsg({ text: "" }); }}>{t("sheets.disconnect")}</button>
           </div>
         ) : (
