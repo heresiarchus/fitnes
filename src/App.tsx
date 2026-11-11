@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { HashRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { HashRouter, NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { PwaPrompt } from "./components/PwaPrompt";
 import { useDays, useSettings } from "./db";
 import { I18nProvider, type MessageKey, useI18n } from "./i18n";
@@ -8,6 +8,7 @@ import { CalendarPage } from "./pages/CalendarPage";
 import { Overview } from "./pages/Overview";
 import { Reports } from "./pages/Reports";
 import { SettingsPage } from "./pages/SettingsPage";
+import { askNotifications, isNative, listenNativeOpens, syncReminders, updateWidget } from "./native";
 
 const ICONS: Record<string, string> = {
   overview: "M3 13h4v8H3zM10 8h4v13h-4zM17 3h4v18h-4z",
@@ -26,9 +27,25 @@ const TABS = [
 ];
 
 function Shell() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const days = useDays();
   const settings = useSettings();
+  const navigate = useNavigate();
+  const [notifOk, setNotifOk] = useState(false);
+
+  useEffect(() => {
+    listenNativeOpens((route) => navigate(route));
+    // Ask once on first launch; the answer is remembered by Android.
+    if (isNative) void askNotifications().then(setNotifOk);
+  }, [navigate]);
+
+  // Keep the widget and the reminder schedule in step with the data.
+  useEffect(() => {
+    if (!days) return;
+    void updateWidget(days, t, lang);
+    void syncReminders(settings, days, t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days, settings.reminders, lang, notifOk]);
 
   return (
     <>
@@ -54,7 +71,7 @@ function Shell() {
           </NavLink>
         ))}
       </nav>
-      <PwaPrompt />
+      {!isNative && <PwaPrompt />}
     </>
   );
 }

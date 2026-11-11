@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "auto",
   sources: { steps: true, exercise: true, weight: false, bp: false },
   bpMark: { sys: 135, dia: 85 },
+  reminders: { weigh: { on: true, time: "08:00" }, evening: { on: true, time: "21:00" }, bp: { on: false, time: "20:00" } },
   updatedAt: EPOCH,
 };
 
@@ -35,6 +36,11 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
     ...DEFAULT_SETTINGS, ...r,
     sources: { ...DEFAULT_SETTINGS.sources, ...(r.sources ?? {}) },
     bpMark: { ...DEFAULT_SETTINGS.bpMark, ...(r.bpMark ?? {}) },
+    reminders: {
+      weigh: { ...DEFAULT_SETTINGS.reminders.weigh, ...(r.reminders?.weigh ?? {}) },
+      evening: { ...DEFAULT_SETTINGS.reminders.evening, ...(r.reminders?.evening ?? {}) },
+      bp: { ...DEFAULT_SETTINGS.reminders.bp, ...(r.reminders?.bp ?? {}) },
+    },
   };
 }
 

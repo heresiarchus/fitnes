@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { SyncBadge } from "../components/SyncBadge";
@@ -11,7 +11,8 @@ import { applySamsung, emptySamsung, parseSamsungFile } from "../lib/samsung";
 import { syncNow } from "../sync/engine";
 import { checkRepo, SyncError } from "../sync/github";
 import type { DaysMap, Lang, Phase, Settings, Theme } from "../lib/types";
-import { SOURCE_KEYS } from "../lib/types";
+import { REMINDER_KINDS, SOURCE_KEYS } from "../lib/types";
+import { APK_URL, askNotifications, isNative, notificationsAllowed } from "../native";
 
 type Status = { text: string; kind?: "ok" | "err" };
 
@@ -27,6 +28,10 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const [token, setToken] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [syncMsg, setSyncMsg] = useState<Status>({ text: "" });
+  const [notifOk, setNotifOk] = useState(true);
+  useEffect(() => { if (isNative) void notificationsAllowed().then(setNotifOk); }, []);
+  const setReminder = (k: (typeof REMINDER_KINDS)[number], patch: Partial<{ on: boolean; time: string }>) =>
+    updateSettings({ reminders: { ...settings.reminders, [k]: { ...settings.reminders[k], ...patch } } });
   const count = Object.keys(days).length;
 
   function saveGoal(v: string) {
@@ -146,6 +151,39 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </>
         )}
         {syncMsg.text && <p className={"status " + (syncMsg.kind ?? "")} role="status">{syncMsg.text}</p>}
+      </section>
+
+      <section className="block">
+        <Head title={t("remind.title")} help={<>{t("remind.help")} {isNative ? t("remind.widgetHint") : ""}</>} />
+        {!isNative && (
+          <>
+            <p className="help-text">{t("remind.webOnly")}</p>
+            <a className="btn primary block" href={APK_URL}>{t("remind.getApk")}</a>
+          </>
+        )}
+        {isNative && !notifOk && (
+          <>
+            <p className="status err" style={{ margin: 0 }}>{t("remind.denied")}</p>
+            <div className="actions"><button type="button" className="primary" onClick={() => void askNotifications().then(setNotifOk)}>{t("remind.allow")}</button></div>
+          </>
+        )}
+        <div className="src-list">
+          {REMINDER_KINDS.map((k) => {
+            const r = settings.reminders[k];
+            return (
+              <div className="src-row" key={k}>
+                <span>{t(`remind.${k}` as MessageKey)}</span>
+                <div className="remind-ctl">
+                  <div className="seg full" role="radiogroup" aria-label={t(`remind.${k}` as MessageKey)}>
+                    <button type="button" role="radio" aria-checked={r.on} className={r.on ? "on" : ""} onClick={() => setReminder(k, { on: true })}>{t("remind.on")}</button>
+                    <button type="button" role="radio" aria-checked={!r.on} className={!r.on ? "on" : ""} onClick={() => setReminder(k, { on: false })}>{t("remind.off")}</button>
+                  </div>
+                  <input type="time" aria-label={t("remind.time")} value={r.time} disabled={!r.on} onChange={(e) => e.target.value && setReminder(k, { time: e.target.value })} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section className="block">

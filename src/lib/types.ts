@@ -58,8 +58,14 @@ export interface Settings {
   sources: Record<SourceKey, boolean>;
   /** Blood pressure at or above this is highlighted in the calendar. */
   bpMark: { sys: number; dia: number };
+  /** Daily reminders (shown by the Android app). */
+  reminders: Reminders;
   updatedAt: string;
 }
+
+export type ReminderKind = "weigh" | "evening" | "bp";
+export const REMINDER_KINDS: ReminderKind[] = ["weigh", "evening", "bp"];
+export type Reminders = Record<ReminderKind, { on: boolean; time: string }>;
 
 export type SourceKey = "steps" | "exercise" | "weight" | "bp";
 export const SOURCE_KEYS: SourceKey[] = ["steps", "exercise", "weight", "bp"];

@@ -258,6 +258,10 @@ details:not(.ex-card)[open] > summary { margin-bottom: 12px; }
 .src-row { display: grid; gap: 6px; }
 .src-row > span { font-weight: 600; }
 
+.remind-ctl input { padding: 0 10px; }
+.remind-ctl { display: grid; grid-template-columns: minmax(0, 1fr) 138px; gap: 8px; align-items: center; }
+.remind-ctl input:disabled { opacity: 0.5; }
+
 /* Calendar */
 .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .cal-wd { text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--muted); padding-bottom: 2px; }
