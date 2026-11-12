@@ -146,7 +146,7 @@ function BpQuickAdd({ date, today, days }: { date: string; today: string; days: 
 
   return (
     <section className="block">
-      <Head title={t("cal.bpAddFor", { d: ddmm(date) })} help={t("form.bpHint")} />
+      <Head title={t("cal.bpAddFor", { d: ddmm(date) })} />
       <div>
         <div className="seg full" role="radiogroup">
           {(["am", "pm", "ep"] as const).map((p) => (

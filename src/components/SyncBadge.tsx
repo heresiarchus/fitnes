@@ -8,6 +8,7 @@ import { useSyncStatus } from "../sync/engine";
 export function SyncBadge({ detailed = false }: { detailed?: boolean }) {
   const { t, lang } = useI18n();
   const s = useSyncStatus();
+  const hidden = !detailed && s.state === "off"; // the warning card says it already
   const pending = useLiveQuery(
     async () => (s.state === "off" ? 0 : db.days.filter((d) => !s.lastSyncAt || d.updatedAt > s.lastSyncAt).count()),
     [s.state, s.lastSyncAt],
@@ -23,6 +24,7 @@ export function SyncBadge({ detailed = false }: { detailed?: boolean }) {
     case "error": text = t("sync.state.error", { e: t(`sync.err.${s.error ?? "http"}` as MessageKey) }); break;
     default: text = time ? t("sync.state.idle", { t: time }) : t("sync.state.never");
   }
+  if (hidden) return null;
   const cls = s.state === "error" ? "err" : s.state === "idle" ? "ok" : "";
   const body = (
     <span className={"sync-badge status " + cls} role="status">

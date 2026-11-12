@@ -72,6 +72,8 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
         )}
       </section>
 
+      <Link className="btn block" to="/reports">{t("more.reports")} →</Link>
+
       <section className="block">
         <Head title={t("chart.weight")} help={t("chart.weightLegend")} />
         <WeightChart days={days} dates={chartDates} />

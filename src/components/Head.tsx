@@ -6,13 +6,15 @@ interface Props {
   help?: ReactNode;
   /** Text for the help button instead of "?" (e.g. "How to connect"). */
   helpLabel?: string;
+  /** A short always-visible line under the title (preferred over hidden help). */
+  sub?: ReactNode;
   /** Extra content on the right side of the heading row. */
   right?: ReactNode;
-  as?: "h2" | "legend" | "label";
+  as?: "h1" | "h2" | "legend" | "label";
 }
 
 /** Heading with optional help text that stays hidden until asked for. */
-export function Head({ title, help, helpLabel, right, as = "h2" }: Props) {
+export function Head({ title, help, helpLabel, right, sub, as = "h2" }: Props) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const btn = help ? (
@@ -36,6 +38,7 @@ export function Head({ title, help, helpLabel, right, as = "h2" }: Props) {
     return (
       <>
         <span className="head-line label-line">{title}{btn}</span>
+        {sub && <small className="head-sub">{sub}</small>}
         {panel}
       </>
     );
@@ -43,9 +46,10 @@ export function Head({ title, help, helpLabel, right, as = "h2" }: Props) {
   return (
     <>
       <div className="head-row">
-        <span className="head-line"><h2>{title}</h2>{!helpLabel && btn}</span>
+        <span className="head-line">{as === "h1" ? <h1>{title}</h1> : <h2>{title}</h2>}{!helpLabel && btn}</span>
         {right}
       </div>
+      {sub && <small className="head-sub">{sub}</small>}
       {helpLabel && btn}
       {panel}
     </>

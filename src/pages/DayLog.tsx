@@ -2,22 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChipScale } from "../components/ChipScale";
 import { SyncWarning } from "../components/SyncBadge";
+import { Card } from "../components/Card";
+import { DiaryAdd, DiaryList } from "../components/Diary";
+import { SamsungCard } from "../components/SamsungCard";
 import { ChipScale as Scale } from "../components/ChipScale";
 import { HabitMarker } from "../components/HabitMarker";
-import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { WeightPicker } from "../components/WeightPicker";
 import { deleteDay, deleteItem, saveDay, saveItem, useItems } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import { addDays, ddmm, iso, parseIso } from "../lib/date";
 import { type DayFormState, fromFormState, missingRequired, type SetRow, toFormState } from "../lib/dayForm";
-import { fmtInt } from "../lib/format";
 import { fmt, num } from "../lib/format";
 import { activeHabits } from "../lib/habits";
 import { lastStrengthFor, previousBp, previousWeight, previousWorkout } from "../lib/stats";
 import type { BpSlot, DayEntry, DaysMap, Flag, PainArea, Settings, SourceKey } from "../lib/types";
 import { fromWatch, SOURCE_KEYS } from "../lib/types";
-import { bpSummary } from "../lib/stats";
 import { BP_SLOTS, DAY_TYPES, EXERCISES, FLAGS, HEART_FLAGS, PAIN_AREAS } from "../lib/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -70,8 +70,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
   const [saveErr, setSaveErr] = useState("");
   const watch: SourceKey[] = SOURCE_KEYS.filter((k) => fromWatch(settings, k));
   const isWatch = (k: SourceKey) => watch.includes(k);
-  const bpWeek = date >= settings.startDate && date < iso(addDays(parseIso(settings.startDate), 7));
-  const [bpOpen, setBpOpen] = useState(!!entry?.bp || bpWeek);
+  const bpOpen = !!entry?.bp;
   const lastWorkout = previousWorkout(days, date);
   const lastBp = previousBp(days, date);
 
@@ -164,247 +163,154 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
 
   const shift = (n: number) => onDate(iso(addDays(parseIso(date), n)));
 
+  const todayDiary = (diary ?? []).filter((x) => x.date === date);
+  const habitsDone = habits.filter((h) => f.habits[h.id]?.status).length;
+  const strengthDone = EXERCISES.filter((id) => f.ex[id].reps).length + f.custom.filter((c) => c.reps).length;
+  const bpCount = BP_SLOTS.filter((sl) => f.bp[sl].sys && f.bp[sl].dia).length;
+  const okChip = (text: string) => ({ text, tone: "ok" as const });
+  const todoChip = (text: string) => ({ text, tone: "todo" as const });
+
   return (
-    <section className="block">
-      <Head title={t("form.title")} help={t("help.save")} right={<span className={"status" + (saveErr ? " err" : savedAt ? " ok" : "")}>{saveErr || (savedAt ? t("day.saved", { t: savedAt }) : t("day.autosave"))}</span>} />
-      <div className="pnav">
-        <button type="button" aria-label={t("form.prevDay")} onClick={() => shift(-1)}>‹</button>
-        <div className="pnav-mid">
-          <input type="date" aria-label={t("form.date")} value={date} max={today} onChange={(e) => e.target.value && onDate(e.target.value)} />
-          {date !== today && <button type="button" className="link" onClick={() => onDate(today)}>{t("form.today")}</button>}
+    <>
+      <section className="block">
+        <div className="pnav">
+          <button type="button" aria-label={t("form.prevDay")} onClick={() => shift(-1)}>‹</button>
+          <div className="pnav-mid">
+            <input type="date" aria-label={t("form.date")} value={date} max={today} onChange={(e) => e.target.value && onDate(e.target.value)} />
+            {date !== today && <button type="button" className="link" onClick={() => onDate(today)}>{t("form.today")}</button>}
+          </div>
+          <button type="button" aria-label={t("form.nextDay")} onClick={() => shift(1)} disabled={date >= today}>›</button>
         </div>
-        <button type="button" aria-label={t("form.nextDay")} onClick={() => shift(1)} disabled={date >= today}>›</button>
-      </div>
-      <p className={"day-left" + (left.length ? "" : " done")}>
-        {left.length ? t("day.left", { list: left.map((m) => t(m === "weight" ? "day.left.weight" : "day.left.feel")).join(", ") }) : evening || f.feel ? t("day.allDone") : t("day.morningDone")}
-      </p>
-      <form onSubmit={(e) => e.preventDefault()} noValidate>
-        <fieldset>
-          <Head as="legend" title={<>{t("form.weight")}<span className="req">{t("form.required")}</span>{isWatch("weight") && <span className="src-tag">{t("form.fromSamsung")}</span>}</>} help={isWatch("weight") ? t("watch.help") : t("help.weight")} />
-          {isWatch("weight") ? (
-            <div className="watch-val">
-              {entry?.weight != null
-                ? <b>{t("watch.weight", { w: fmt(entry.weight, lang) })}{entry.weightTime ? ` · ${entry.weightTime}` : ""}</b>
-                : f.weightChoice === "no" ? <span className="status ok">✓ {t("form.noWeightChosen")}</span> : <span className="status">{t("watch.waiting")}</span>}
-              {entry?.weight == null && (
-                f.weightChoice === "no"
-                  ? <button type="button" className="pill" onClick={() => set("weightChoice", "pending")}>{t("form.weighAfterAll")}</button>
-                  : <button type="button" className="pill" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
-              )}
-            </div>
-          ) : (
+        <p className={"day-left" + (left.length ? "" : " done")}>
+          {left.length ? t("day.left", { list: left.map((m) => t(m === "weight" ? "day.left.weight" : "day.left.feel")).join(", ") }) : evening || f.feel ? t("day.allDone") : t("day.morningDone")}
+          {(saveErr || savedAt) && <small className={saveErr ? "err" : ""}>{saveErr || t("day.saved", { t: savedAt! })}</small>}
+        </p>
+      </section>
+      <SyncWarning />
+
+      <SamsungCard entry={entry} settings={settings} onNoWeight={() => set("weightChoice", "no")} />
+
+      {!isWatch("weight") && (
+        <Card icon="weight" title={t("form.weight")}
+          status={f.weightChoice === "yes" ? okChip(`${fmt(num(f.weight), lang)} ${t("common.kg")}`) : f.weightChoice === "no" ? okChip(t("form.noWeightChosen")) : todoChip(t("form.required"))}>
           <div className={"weight-box" + (f.weightChoice === "yes" ? "" : " pending")}>
             <WeightPicker value={f.weight} onChange={(v) => setF((p) => weighed(p, v))} />
             <div className="weight-side">
-              {f.weightChoice === "yes" && (
+              {f.weightChoice === "pending" ? (
                 <div className="pill-row">
-                  <span className="status ok">✓ {t("form.weightWillSave")}</span>
+                  {prevW && <button type="button" className="primary compact" onClick={() => setF((p) => weighed(p, p.weight || String(prevW.weight)))}>{t("form.weightSame")} {fmt(num(f.weight) ?? prevW.weight, lang)}</button>}
                   <button type="button" className="pill" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
                 </div>
-              )}
-              {f.weightChoice === "no" && (
+              ) : (
                 <div className="pill-row">
-                  <span className="status ok">✓ {t("form.noWeightChosen")}</span>
-                  <button type="button" className="pill" onClick={() => setF((p) => weighed(p, p.weight))}>{t("form.weighAfterAll")}</button>
+                  {f.weightChoice === "yes"
+                    ? <button type="button" className="pill" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
+                    : <button type="button" className="pill" onClick={() => setF((p) => weighed(p, p.weight))}>{t("form.weighAfterAll")}</button>}
                 </div>
               )}
-              {f.weightChoice === "pending" && (
-                <>
-                  <span className="status">{prevW ? t("form.weightPrefill", { d: ddmm(prevW.date) }) : t("form.weightFirst")}</span>
-                  <div className="pill-row">
-                    {prevW && <button type="button" className="primary compact" onClick={() => setF((p) => weighed(p, p.weight || String(prevW.weight)))}>{t("form.weightSame")} {fmt(num(f.weight) ?? prevW.weight, lang)}</button>}
-                    <button type="button" className="pill" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
-                  </div>
-                </>
-              )}
-              <label className="field"><span>{t("form.weightCond")}</span>
-                <select value={f.weightCond} onChange={(e) => set("weightCond", e.target.value as DayFormState["weightCond"])}>
-                  <option value="morning">{t("form.weightCond.morning")}</option>
-                  <option value="other">{t("form.weightCond.other")}</option>
-                </select>
-              </label>
+              <div className="seg full" role="radiogroup" aria-label={t("form.weightCond")}>
+                {(["morning", "other"] as const).map((c) => (
+                  <button key={c} type="button" role="radio" aria-checked={f.weightCond === c} className={f.weightCond === c ? "on" : ""} onClick={() => set("weightCond", c)}>{t(c === "morning" ? "form.cond.morning" : "form.cond.other")}</button>
+                ))}
+              </div>
             </div>
           </div>
-          )}
-        </fieldset>
+        </Card>
+      )}
 
-        {habits.length > 0 && (
-          <fieldset>
-            <Head as="legend" title={t("habit.title")} help={t("habit.help")} />
-            {habits.map((h) => (
-              <HabitMarker key={h.id} habit={h} row={f.habits[h.id] ?? { status: "", detail: "", reason: "", extra: {} }}
-                onChange={(row) => setF((p) => ({ ...p, habits: { ...p.habits, [h.id]: row } }))} />
-            ))}
-          </fieldset>
-        )}
+      {habits.length > 0 && (
+        <Card icon="habits" title={t("habit.title")} status={habitsDone === habits.length ? okChip("✓") : todoChip(`${habitsDone}/${habits.length}`)}>
+          {habits.map((h) => (
+            <HabitMarker key={h.id} habit={h} row={f.habits[h.id] ?? { status: "", detail: "", reason: "", extra: {} }}
+              onChange={(row) => setF((p) => ({ ...p, habits: { ...p.habits, [h.id]: row } }))} />
+          ))}
+        </Card>
+      )}
 
-        {watch.some((k) => k !== "weight") && (
-          <div className="watch-card">
-            <Head as="label" title={<b>{t("watch.title")}</b>} help={t("watch.help")} />
-            <ul className="watch-list">
-              {isWatch("steps") && <li>{entry?.steps != null ? t("watch.steps", { n: fmtInt(entry.steps, lang) }) : <span className="status">{t("cal.day.steps")}: {t("watch.waiting")}</span>}</li>}
-              {isWatch("exercise") && (entry?.walkMin || entry?.cardioMin ? (
-                <>
-                  {!!entry?.walkMin && <li>{t("watch.walk", { n: entry.walkMin })}</li>}
-                  {!!entry?.cardioMin && <li>{t("watch.cardio", { what: entry.cardioWhat || t("history.cardioDefault"), n: entry.cardioMin })}</li>}
-                </>
-              ) : <li><span className="status">{t("cal.day.walk")}: {t("watch.waiting")}</span></li>)}
-              {isWatch("bp") && (() => { const b = bpSummary(entry); const v = [b.morning, b.evening].filter(Boolean).map((x) => `${x!.sys}/${x!.dia}`).join(" · "); return <li>{v ? t("watch.bp", { v }) : <span className="status">{t("cal.day.bp")}: {t("watch.waiting")}</span>}</li>; })()}
-              {isWatch("sleep") && <li>{entry?.sleepMin ? `${t("cal.day.sleep")} ${Math.floor(entry.sleepMin / 60)}:${String(entry.sleepMin % 60).padStart(2, "0")}${entry.restingHr ? ` · ${t("cal.day.restingHr").toLowerCase()} ${entry.restingHr}` : ""}` : <span className="status">{t("cal.day.sleep")}: {t("watch.waiting")}</span>}</li>}
-            </ul>
-          </div>
-        )}
-
-        {!isWatch("steps") && (
-        <fieldset>
-          <Head as="legend" title={t("form.steps")} />
-          <Stepper value={f.steps} onChange={(v) => set("steps", v)} step={500} max={100000} label={t("form.steps")} />
-        </fieldset>
-        )}
-
-        {!isWatch("exercise") && (
-        <fieldset>
-          <Head as="legend" title={t("form.cardioBlock")} />
-          <div className="fields">
-            <div className="field"><span>{t("form.walk")}</span>
-              <Stepper value={f.walk} onChange={(v) => set("walk", v)} step={5} max={600} label={t("form.walk")} />
+      {(!isWatch("steps") || !isWatch("exercise")) && (
+        <Card icon="move" title={t("form.cardioBlock")}>
+          {!isWatch("steps") && (
+            <div className="field"><span>{t("form.steps")}</span>
+              <Stepper value={f.steps} onChange={(v) => set("steps", v)} step={500} max={100000} label={t("form.steps")} />
             </div>
-            <label className="field"><span>{t("form.walkInt")}</span>
-              <select value={f.walkInt} onChange={(e) => set("walkInt", e.target.value as DayFormState["walkInt"])}>
-                <option value="light">{t("form.walkInt.light")}</option>
-                <option value="moderate">{t("form.walkInt.moderate")}</option>
-              </select>
-            </label>
-          </div>
-          <ChipScale value={f.walk} onChange={(v) => set("walk", v)} values={WALK_QUICK} label={t("form.walk")} />
-          <div className="fields">
-            <label className="field"><span>{t("form.cardioType")}</span>
-              <select value={cardioKind} onChange={(e) => pickCardio(e.target.value)}>
-                <option value="">{t("form.cardioNone")}</option>
-                {CARDIO.map((k) => <option key={k} value={k}>{t(`cardio.${k}` as MessageKey)}</option>)}
-                <option value="other">{t("cardio.other")}</option>
-              </select>
-            </label>
-            {cardioKind !== "" && (
-              <div className="field"><span>{t("form.cardioMin")}</span>
-                <Stepper value={f.cardio} onChange={(v) => set("cardio", v)} step={5} max={600} label={t("form.cardio")} />
-              </div>
-            )}
-            {cardioKind === "other" && (
-              <label className="field"><span>{t("form.cardioWhat")}</span>
-                <input type="text" maxLength={60} value={f.cardioWhat} placeholder={t("form.cardioOtherPh")} onChange={(e) => set("cardioWhat", e.target.value)} />
-              </label>
-            )}
-          </div>
-        </fieldset>
-        )}
-
-        <fieldset>
-          <Head as="legend" title={t("form.strength")} help={t("form.strengthHint")} />
-          {lastWorkout && (
-            <div className="actions"><button type="button" onClick={repeatWorkout}>↻ {t("form.repeatWorkout", { d: ddmm(lastWorkout.date) })}</button></div>
           )}
-          <div className="ex-list">
-            {EXERCISES.map((id) => {
-              const name = t(`ex.${id}` as MessageKey);
-              const hint = t(`ex.${id}.hint` as MessageKey);
-              const last = lastStrengthFor(days, id, date);
-              const row = f.ex[id];
-              const now = summary(row.sets, row.reps, row.kg);
-              const before = last ? summary(String(last.sets), String(last.reps), last.kg == null ? "" : String(last.kg)) : "";
-              return (
-                <details className={"ex-card" + (row.reps ? " done" : "")} key={id} open={openEx === id} onToggle={(e) => { const o = (e.target as HTMLDetailsElement).open; setOpenEx((cur) => (o ? id : cur === id ? null : cur)); }}>
-                  <summary>
-                    <span className="ex-name"><b>{name}</b>{hint && <small>{hint}</small>}</span>
-                    <span className={"ex-sum" + (now ? " set" : "")}>{now || before || "+"}</span>
-                  </summary>
-                  <div className="ex-steps">
-                    <div><span>{t("form.sets")}</span><Stepper value={row.sets} onChange={(v) => setEx(id, "sets", v)} step={1} max={10} start={last?.sets} label={`${name}: ${t("form.sets")}`} /></div>
-                    <div><span>{t("form.reps")}</span><Stepper value={row.reps} onChange={(v) => setEx(id, "reps", v)} step={1} max={200} start={last?.reps} label={`${name}: ${t("form.reps")}`} /></div>
-                    <div><span>{t("form.kg")}</span><Stepper value={row.kg} onChange={(v) => setEx(id, "kg", v)} step={0.5} max={200} decimals={1} inputMode="decimal" start={last?.kg} label={`${name}: ${t("form.kg")}`} /></div>
-                  </div>
-                </details>
-              );
-            })}
-            {f.custom.map((c, i) => (
-              <div className={"ex-card custom" + (c.reps ? " done" : "")} key={c.key}>
-                <div className="ex-name"><input type="text" maxLength={60} placeholder={t("form.customName")} aria-label={t("form.customName")} value={c.name} onChange={(e) => setCustom(i, "name", e.target.value)} /></div>
-                <div className="ex-steps">
-                  <div><span>{t("form.sets")}</span><Stepper value={c.sets} onChange={(v) => setCustom(i, "sets", v)} step={1} max={10} label={t("form.sets")} /></div>
-                  <div><span>{t("form.reps")}</span><Stepper value={c.reps} onChange={(v) => setCustom(i, "reps", v)} step={1} max={200} label={t("form.reps")} /></div>
-                  <div><span>{t("form.kg")}</span><Stepper value={c.kg} onChange={(v) => setCustom(i, "kg", v)} step={0.5} max={200} decimals={1} inputMode="decimal" label={t("form.kg")} /></div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="row">
-            <button type="button" className="link" onClick={() => set("custom", [...f.custom, { key: Date.now(), name: "", sets: "", reps: "", kg: "" }])}>{t("form.addCustom")}</button>
-          </div>
-        </fieldset>
-
-        {(() => {
-          const body = (
+          {!isWatch("exercise") && (
             <>
-              <Head as="label" title={<b className="habit-title">{t("form.feel")} <span className="req">{t("form.required")}</span></b>} help={t("form.feelHelp")} />
-              <ChipScale value={f.feel} onChange={(v) => set("feel", v)} values={[1, 2, 3, 4, 5]} label={t("form.feel")} clearable={false} />
-              <div className="scale-ends"><span>{t("form.feel.1")}</span><span>{t("form.feel.5")}</span></div>
-              <label className="field"><span>{t("form.positive")}</span>
-                <textarea className="short" maxLength={500} value={f.positive} placeholder={t("form.positivePh")} onChange={(e) => set("positive", e.target.value)} />
-              </label>
+              <div className="field"><span>{t("form.walk")}</span>
+                <Stepper value={f.walk} onChange={(v) => set("walk", v)} step={5} max={600} label={t("form.walk")} />
+              </div>
+              <ChipScale value={f.walk} onChange={(v) => set("walk", v)} values={WALK_QUICK} label={t("form.walk")} />
+              <div className="seg full" role="radiogroup" aria-label={t("form.walkInt")}>
+                {(["light", "moderate"] as const).map((k) => (
+                  <button key={k} type="button" role="radio" aria-checked={f.walkInt === k} className={f.walkInt === k ? "on" : ""} onClick={() => set("walkInt", k)}>{t(`form.pace.${k}` as MessageKey)}</button>
+                ))}
+              </div>
+              <div className="fields">
+                <label className="field"><span>{t("form.cardioType")}</span>
+                  <select value={cardioKind} onChange={(e) => pickCardio(e.target.value)}>
+                    <option value="">{t("form.cardioNone")}</option>
+                    {CARDIO.map((k) => <option key={k} value={k}>{t(`cardio.${k}` as MessageKey)}</option>)}
+                    <option value="other">{t("cardio.other")}</option>
+                  </select>
+                </label>
+                {cardioKind !== "" && (
+                  <div className="field"><span>{t("form.cardioMin")}</span>
+                    <Stepper value={f.cardio} onChange={(v) => set("cardio", v)} step={5} max={600} label={t("form.cardio")} />
+                  </div>
+                )}
+                {cardioKind === "other" && (
+                  <label className="field"><span>{t("form.cardioWhat")}</span>
+                    <input type="text" maxLength={60} value={f.cardioWhat} placeholder={t("form.cardioOtherPh")} onChange={(e) => set("cardioWhat", e.target.value)} />
+                  </label>
+                )}
+              </div>
             </>
-          );
-          return evening || f.feel || f.positive
-            ? <fieldset><legend>{t("day.evening")}</legend>{body}</fieldset>
-            : <details><summary>{t("day.evening")}</summary><p className="status" style={{ margin: "0 0 10px" }}>{t("day.eveningLater")}</p><div className="ctx">{body}</div></details>;
-        })()}
+          )}
+        </Card>
+      )}
 
-        <details>
-          <summary>{t("form.body")}</summary>
-          <div className="ctx">
-          {PAIN_AREAS.map((a) => (
-            <div className="field" key={a}>
-              <span>{t(`form.pain.${a}` as MessageKey)}</span>
-              <ChipScale value={f.pain[a]} onChange={(v) => setPain(a, v)} values={PAIN} label={t(`form.pain.${a}` as MessageKey)} />
+      <Card icon="strength" title={t("form.strength")} fold open={strengthDone > 0} status={strengthDone ? okChip(String(strengthDone)) : undefined}>
+        {lastWorkout && (
+          <div className="pill-row"><button type="button" className="pill" onClick={repeatWorkout}>↻ {t("form.repeatWorkout", { d: ddmm(lastWorkout.date) })}</button></div>
+        )}
+        <div className="ex-list">
+          {EXERCISES.map((id) => {
+            const name = t(`ex.${id}` as MessageKey);
+            const hint = t(`ex.${id}.hint` as MessageKey);
+            const last = lastStrengthFor(days, id, date);
+            const row = f.ex[id];
+            const now = summary(row.sets, row.reps, row.kg);
+            const before = last ? summary(String(last.sets), String(last.reps), last.kg == null ? "" : String(last.kg)) : "";
+            return (
+              <details className={"ex-card" + (row.reps ? " done" : "")} key={id} open={openEx === id} onToggle={(e) => { const o = (e.target as HTMLDetailsElement).open; setOpenEx((cur) => (o ? id : cur === id ? null : cur)); }}>
+                <summary>
+                  <span className="ex-name"><b>{name}</b>{hint && <small>{hint}</small>}</span>
+                  <span className={"ex-sum" + (now ? " set" : "")}>{now || before || "+"}</span>
+                </summary>
+                <div className="ex-steps">
+                  <div><span>{t("form.sets")}</span><Stepper value={row.sets} onChange={(v) => setEx(id, "sets", v)} step={1} max={10} start={last?.sets} label={`${name}: ${t("form.sets")}`} /></div>
+                  <div><span>{t("form.reps")}</span><Stepper value={row.reps} onChange={(v) => setEx(id, "reps", v)} step={1} max={200} start={last?.reps} label={`${name}: ${t("form.reps")}`} /></div>
+                  <div><span>{t("form.kg")}</span><Stepper value={row.kg} onChange={(v) => setEx(id, "kg", v)} step={0.5} max={200} decimals={1} inputMode="decimal" start={last?.kg} label={`${name}: ${t("form.kg")}`} /></div>
+                </div>
+              </details>
+            );
+          })}
+          {f.custom.map((c, i) => (
+            <div className={"ex-card custom" + (c.reps ? " done" : "")} key={c.key}>
+              <div className="ex-name"><input type="text" maxLength={60} placeholder={t("form.customName")} aria-label={t("form.customName")} value={c.name} onChange={(e) => setCustom(i, "name", e.target.value)} /></div>
+              <div className="ex-steps">
+                <div><span>{t("form.sets")}</span><Stepper value={c.sets} onChange={(v) => setCustom(i, "sets", v)} step={1} max={10} label={t("form.sets")} /></div>
+                <div><span>{t("form.reps")}</span><Stepper value={c.reps} onChange={(v) => setCustom(i, "reps", v)} step={1} max={200} label={t("form.reps")} /></div>
+                <div><span>{t("form.kg")}</span><Stepper value={c.kg} onChange={(v) => setCustom(i, "kg", v)} step={0.5} max={200} decimals={1} inputMode="decimal" label={t("form.kg")} /></div>
+              </div>
             </div>
           ))}
-          <div className="checks">
-            {FLAGS.map((fl) => (
-              <label key={fl}><input type="checkbox" checked={f.flags.includes(fl)} onChange={() => toggleFlag(fl)} /> {t(`form.flag.${fl}` as MessageKey)}</label>
-            ))}
-          </div>
-          {heart && <div className="alert" role="alert"><b>{t("form.alertHeartTitle")}</b> {t("form.alertHeart")}</div>}
-          {foot && <div className="alert" role="alert"><b>{t("form.alertFootTitle")}</b> {t("form.alertFoot")}</div>}
         </div>
-        </details>
+        <button type="button" className="link" onClick={() => set("custom", [...f.custom, { key: Date.now(), name: "", sets: "", reps: "", kg: "" }])}>{t("form.addCustom")}</button>
+      </Card>
 
-        <details>
-          <summary>{t("ctx.title")}</summary>
-          <div className="ctx">
-            <label className="field"><span>{t("ctx.dayType")}</span>
-              <select value={f.dayType} onChange={(e) => set("dayType", e.target.value as DayFormState["dayType"])}>
-                <option value="">{t("ctx.dayType.none")}</option>
-                {DAY_TYPES.map((k) => <option key={k} value={k}>{t(`ctx.dayType.${k}` as MessageKey)}</option>)}
-              </select>
-            </label>
-            {(["partnerHere", "nightEpisode"] as const).map((k) => (
-              <div className="field" key={k}><span>{t(k === "partnerHere" ? "ctx.partner" : "ctx.episode")}</span>
-                <div className="seg full" role="radiogroup">
-                  {(["yes", "no"] as const).map((v) => (
-                    <button key={v} type="button" role="radio" aria-checked={f[k] === v} className={f[k] === v ? "on" : ""} onClick={() => set(k, f[k] === v ? "" : v)}>{t(v === "yes" ? "ctx.yes" : "ctx.no")}</button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {f.nightEpisode === "yes" && (
-              <input type="text" maxLength={200} placeholder={t("ctx.episodeNote")} aria-label={t("ctx.episodeNote")} value={f.episodeNote} onChange={(e) => set("episodeNote", e.target.value)} />
-            )}
-            <div className="field"><span>{t("ctx.energyAm")}</span><Scale value={f.energyAm} onChange={(v) => set("energyAm", v)} values={[1, 2, 3, 4, 5]} label={t("ctx.energyAm")} /></div>
-            <div className="field"><span>{t("ctx.energyPm")}</span><Scale value={f.energyPm} onChange={(v) => set("energyPm", v)} values={[1, 2, 3, 4, 5]} label={t("ctx.energyPm")} /></div>
-          </div>
-        </details>
-
-        <details open={bpOpen} onToggle={(e) => setBpOpen((e.target as HTMLDetailsElement).open)}>
-          <summary>{t("form.bp")}</summary>
+      {!isWatch("bp") && (
+        <Card icon="heart" title={t("form.bp")} fold open={bpOpen} status={bpCount ? okChip(String(bpCount)) : undefined}>
           <div className="bp-list">
             {BP_SLOTS.map((slot) => {
               const label = t(`form.bp.${slot}` as MessageKey);
@@ -422,17 +328,63 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
               );
             })}
           </div>
-          <p className="help-text" style={{ marginTop: 8 }}>{t("form.bpHint")}</p>
-        </details>
+          <p className="status" style={{ margin: 0 }}>{t("form.bpHint")}</p>
+        </Card>
+      )}
+
+      <Card icon="moon" title={t("day.evening")} fold open={evening || !!f.feel || todayDiary.length > 0}
+        status={f.feel ? okChip(`${f.feel}/5`) : evening ? todoChip(t("form.required")) : undefined}>
+        <span className="sub-h">{t("form.feel")}</span>
+        <ChipScale value={f.feel} onChange={(v) => set("feel", v)} values={[1, 2, 3, 4, 5]} label={t("form.feel")} clearable={false} />
+        <div className="scale-ends"><span>{t("form.feel.1")}</span><span>{t("form.feel.5")}</span></div>
+        <span className="sub-h">{t("diary.title")}</span>
+        <DiaryList entries={todayDiary} showDate={false} />
+        <DiaryAdd date={date} compact />
+      </Card>
+
+      <Card icon="more" title={t("day.more")} fold>
+        <span className="sub-h">{t("form.body")}</span>
+        {PAIN_AREAS.map((a) => (
+          <div className="field" key={a}>
+            <span>{t(`form.pain.${a}` as MessageKey)}</span>
+            <ChipScale value={f.pain[a]} onChange={(v) => setPain(a, v)} values={PAIN} label={t(`form.pain.${a}` as MessageKey)} />
+          </div>
+        ))}
+        <div className="checks">
+          {FLAGS.map((fl) => (
+            <label key={fl}><input type="checkbox" checked={f.flags.includes(fl)} onChange={() => toggleFlag(fl)} /> {t(`form.flag.${fl}` as MessageKey)}</label>
+          ))}
+        </div>
+        {heart && <div className="alert" role="alert"><b>{t("form.alertHeartTitle")}</b> {t("form.alertHeart")}</div>}
+        {foot && <div className="alert" role="alert"><b>{t("form.alertFootTitle")}</b> {t("form.alertFoot")}</div>}
+
+        <span className="sub-h">{t("ctx.title")}</span>
+        <label className="field"><span>{t("ctx.dayType")}</span>
+          <select value={f.dayType} onChange={(e) => set("dayType", e.target.value as DayFormState["dayType"])}>
+            <option value="">{t("ctx.dayType.none")}</option>
+            {DAY_TYPES.map((k) => <option key={k} value={k}>{t(`ctx.dayType.${k}` as MessageKey)}</option>)}
+          </select>
+        </label>
+        {(["partnerHere", "nightEpisode"] as const).map((k) => (
+          <div className="field" key={k}><span>{t(k === "partnerHere" ? "ctx.partner" : "ctx.episode")}</span>
+            <div className="seg full" role="radiogroup">
+              {(["yes", "no"] as const).map((v) => (
+                <button key={v} type="button" role="radio" aria-checked={f[k] === v} className={f[k] === v ? "on" : ""} onClick={() => set(k, f[k] === v ? "" : v)}>{t(v === "yes" ? "ctx.yes" : "ctx.no")}</button>
+              ))}
+            </div>
+          </div>
+        ))}
+        {f.nightEpisode === "yes" && (
+          <input type="text" maxLength={200} placeholder={t("ctx.episodeNote")} aria-label={t("ctx.episodeNote")} value={f.episodeNote} onChange={(e) => set("episodeNote", e.target.value)} />
+        )}
+        <div className="field"><span>{t("ctx.energyAm")}</span><Scale value={f.energyAm} onChange={(v) => set("energyAm", v)} values={[1, 2, 3, 4, 5]} label={t("ctx.energyAm")} /></div>
+        <div className="field"><span>{t("ctx.energyPm")}</span><Scale value={f.energyPm} onChange={(v) => set("energyPm", v)} values={[1, 2, 3, 4, 5]} label={t("ctx.energyPm")} /></div>
 
         <label className="field"><span>{t("form.note")}</span>
-          <textarea maxLength={1000} value={f.note} placeholder={t("form.notePh")} onChange={(e) => set("note", e.target.value)} />
+          <textarea className="short" maxLength={1000} value={f.note} placeholder={t("form.notePh")} onChange={(e) => set("note", e.target.value)} />
         </label>
-
-        {entry && <div className="actions"><button type="button" className="danger compact" onClick={onDelete}>{t("common.delete")}</button></div>}
-        <SyncWarning />
-      </form>
-    </section>
+        {entry && <div className="pill-row"><button type="button" className="danger compact" onClick={onDelete}>{t("form.deleteDay")}</button></div>}
+      </Card>
+    </>
   );
 }
-

@@ -6,6 +6,8 @@ export type BpSlot = "m1" | "m2" | "e1" | "e2";
 export type Phase = "1" | "2" | "3";
 export type Lang = "uk" | "en";
 export type Theme = "auto" | "light" | "dark";
+export type Palette = "mint" | "steel" | "sand" | "graphite";
+export const PALETTES: Palette[] = ["mint", "steel", "sand", "graphite"];
 
 export interface StrengthItem {
   /** Preset exercise id; absent for custom exercises. */
@@ -77,6 +79,7 @@ export interface Settings {
   stepGoal: number | null;
   lang: Lang;
   theme: Theme;
+  palette: Palette;
   /** Set by the phone once Samsung Health (via Health Connect) is connected; synced to other devices. */
   healthLinked: boolean;
   /** Bumped when reminder defaults change, to migrate saved settings once. */
@@ -96,7 +99,8 @@ export interface Settings {
 
 export type ReminderKind = "weigh" | "evening" | "bp" | "review";
 export const REMINDER_KINDS: ReminderKind[] = ["weigh", "evening", "bp", "review"];
-export type Reminders = Record<ReminderKind, { on: boolean; time: string }>;
+export interface ReminderCfg { on: boolean; time: string; /** Evening check: last repeat (may be after midnight) and minutes between repeats. */ until?: string; every?: number }
+export type Reminders = Record<ReminderKind, ReminderCfg>;
 
 export type SourceKey = "steps" | "exercise" | "weight" | "bp" | "sleep";
 export const SOURCE_KEYS: SourceKey[] = ["steps", "exercise", "weight", "bp", "sleep"];
@@ -163,7 +167,7 @@ export interface HabitMark {
 /** Records other than days; synced one by one by id. */
 interface ItemBase { id: string; updatedAt: string; deleted?: true }
 export interface TaskItem extends ItemBase { kind: "task"; title: string; dueDate?: string; doneDate?: string; note?: string }
-export interface DiaryItem extends ItemBase { kind: "diary"; date: string; event: string; feeling?: string; tag?: string; share: boolean; createdAt: string }
+export interface DiaryItem extends ItemBase { kind: "diary"; date: string; event: string; /** How good it was, 0–10. */ rating?: number; feeling?: string; tag?: string; share: boolean; createdAt: string }
 export interface MonthItem extends ItemBase { kind: "hmonth"; month: string; tracker: string; runKm: number; walkKm: number; bikeKm: number; runs: number }
 export type Item = TaskItem | DiaryItem | MonthItem;
 

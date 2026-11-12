@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { SyncBadge } from "../components/SyncBadge";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import { SettingsMenu } from "./SettingsMenu";
 import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useHealthState, useSheetsConfig, useSyncConfig } from "../db";
 import { parseHistory } from "../lib/history";
-import { connectHealth, diagnoseHealth, disconnectHealth, HISTORY_DAYS, openHealthSettings, pullHealth, type TypeReport } from "../health";
+import { connectHealth, diagnoseHealth, disconnectHealth, HISTORY_DAYS, openHealthSettings, pullHealth, todaySteps, type TypeReport } from "../health";
 import { makePairCode, readPairCode } from "../sync/pair";
 import { isScriptUrl } from "../lib/sheets";
 import { sendSheets } from "../sync/sheets";
@@ -18,14 +19,27 @@ import { applySamsung, emptySamsung, parseSamsungFile } from "../lib/samsung";
 import { syncNow } from "../sync/engine";
 import { checkRepo, SyncError } from "../sync/github";
 import type { DaysMap, Habit, Lang, Phase, Settings, Theme } from "../lib/types";
-import { fromWatch, REMINDER_KINDS, SOURCE_KEYS } from "../lib/types";
+import { fromWatch, PALETTES, type Palette, type ReminderKind, SOURCE_KEYS } from "../lib/types";
+
+const PAL_SWATCH: Record<Palette, string[]> = {
+  mint: ["#e9edee", "#9aa6a3", "#0f766e", "#5eead4"],
+  steel: ["#e8ebef", "#8a94a3", "#1d4ed8", "#93b4ff"],
+  sand: ["#efebe5", "#a5978a", "#b4532a", "#f0a27c"],
+  graphite: ["#ffffff", "#9e9e9e", "#111111", "#000000"],
+};
 import { APK_URL, askNotifications, isNative, newerShell, notificationsAllowed } from "../native";
 import { checkForUpdate } from "../components/PwaPrompt";
 
 type Status = { text: string; kind?: "ok" | "err" };
 
+/** Explanations that belong to a whole settings category, shown behind "?" next to its title. */
+const CAT_HELP: Record<string, MessageKey> = {
+  reminders: "remind.how", sources: "src.intro", habits: "habit.manageHelp", data: "settings.dataHint",
+};
+
 export function SettingsPage({ days, settings }: { days: DaysMap; settings: Settings }) {
   const { t } = useI18n();
+  const { cat } = useParams();
   const [status, setStatus] = useState<Status>({ text: "" });
   const [goal, setGoal] = useState(settings.stepGoal == null ? "" : String(settings.stepGoal));
   const fileRef = useRef<HTMLInputElement>(null);
@@ -38,7 +52,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const [syncMsg, setSyncMsg] = useState<Status>({ text: "" });
   const [notifOk, setNotifOk] = useState(true);
   useEffect(() => { if (isNative) void notificationsAllowed().then(setNotifOk); }, []);
-  const setReminder = (k: (typeof REMINDER_KINDS)[number], patch: Partial<{ on: boolean; time: string }>) =>
+  const setReminder = (k: ReminderKind, patch: Partial<{ on: boolean; time: string; until: string; every: number }>) =>
     updateSettings({ reminders: { ...settings.reminders, [k]: { ...settings.reminders[k], ...patch } } });
   const count = Object.keys(days).length;
 
@@ -107,6 +121,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const health = useHealthState();
   const [hcMsg, setHcMsg] = useState<Status>({ text: "" });
   const [diag, setDiag] = useState<TypeReport[] | null>(null);
+  const [steps, setSteps] = useState<{ samsung: number | null; merged: number } | null>(null);
   async function hcConnect() {
     setHcMsg({ text: "…" });
     const r = await connectHealth();
@@ -195,15 +210,18 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
     await syncNow();
   }
 
+  if (!cat) return <SettingsMenu settings={settings} syncOn={!!syncCfg} sheetsOn={!!sheets} />;
+  const catTitle = t(`cat.${cat}` as MessageKey);
   return (
     <>
       <header className="page-head">
-        <h1>{t("nav.more")}</h1>
-        <Link className="btn block" to="/reports">{t("more.reports")} →</Link>
+        <Link className="back" to="/settings">‹ {t("nav.settings")}</Link>
+        <Head as="h1" title={catTitle} help={CAT_HELP[cat] ? t(CAT_HELP[cat]) : undefined} />
       </header>
-
+      {cat === "connect" && (
+        <>
       <section className="block">
-        <Head title={t("sync.title")} help={t("sync.intro")} />
+        <Head title={t("sync.title")} />
         <SyncBadge detailed />
         {syncCfg ? (
           <>
@@ -241,7 +259,64 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         )}
         {syncMsg.text && <p className={"status " + (syncMsg.kind ?? "")} role="status">{syncMsg.text}</p>}
       </section>
-
+      <section className="block">
+        <Head title={t("hc.title")} />
+        {isNative ? (
+          <>
+            <span className={"status" + (health?.lastError ? " err" : health?.on ? " ok" : "")} role="status">
+              {!health?.on ? t("hc.state.off") : health.lastError ? t("hc.state.error", { e: health.lastError }) : hcTime ? t("hc.state.on", { t: hcTime, n: health.lastCount ?? 0 }) : t("hc.state.never")}
+            </span>
+            <Head as="label" title={null} helpLabel={t("hc.how")} help={(
+              <><p style={{ margin: "0 0 8px" }}>{t("hc.what")}</p><ol className="steps-list"><li>{t("hc.step1")}</li><li>{t("hc.step2")}</li><li>{t("hc.step3")}</li></ol></>
+            )} />
+            <div className="actions">
+              {health?.on ? (
+                <>
+                  <button type="button" className="primary" onClick={() => { setHcMsg({ text: "…" }); void pullHealth(30).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.pullNow")}</button>
+                  <button type="button" onClick={() => { setHcMsg({ text: t("hc.historyLoading") }); void connectHealth().then(() => pullHealth(HISTORY_DAYS)).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.history")}</button>
+                  <button type="button" onClick={() => { setDiag(null); void diagnoseHealth().then(setDiag); void todaySteps().then(setSteps).catch(() => setSteps(null)); }}>{t("hc.diag")}</button>
+                  <button type="button" onClick={() => void openHealthSettings()}>{t("hc.permissions")}</button>
+                  <button type="button" className="danger" onClick={() => void disconnectHealth()}>{t("hc.disconnect")}</button>
+                </>
+              ) : <button type="button" className="primary" onClick={hcConnect}>{t("hc.connect")}</button>}
+            </div>
+            {hcMsg.text && <span className={"status " + (hcMsg.kind ?? "")} role="status">{hcMsg.text}</span>}
+            {diag && (
+              <div className="diag">
+                <b>{t("hc.diagTitle")}</b>
+                <ul className="plain">
+                  {diag.map((r) => (
+                    <li key={r.type} className={!r.granted || r.error || !r.count ? "bad" : "good"}>
+                      <span>{t(`hc.diag.type.${r.type}` as MessageKey)}</span>
+                      <span>{!r.granted ? t("hc.diag.noPerm") : r.error ? r.error : !r.count ? t("hc.diag.none") : t("hc.diag.count", { n: r.count, d: (r.last ?? "").slice(0, 10) })}
+                        {r.sources.length > 0 && <small>{t("hc.diag.from", { s: r.sources.join(", ") })}</small>}</span>
+                    </li>
+                  ))}
+                </ul>
+                {steps && <p style={{ margin: 0, fontWeight: 650 }}>{t("hc.todaySteps", { sh: steps.samsung ?? "—", all: steps.merged })}</p>}
+                {steps && steps.samsung != null && steps.merged < steps.samsung && <p className="help-text">{t("hc.priority")}</p>}
+                <p className="status" style={{ margin: 0 }}>{t("hc.diag.hint")}</p>
+              </div>
+            )}
+          </>
+        ) : <p className="help-text">{t("hc.webOnly")}</p>}
+        <details>
+          <summary>{t("hc.fileImport")}</summary>
+          <div className="ctx">
+        <Head as="label" title={null} helpLabel={t("help.samsung.how")} help={(
+          <ol className="steps-list">
+            <li>{t("samsung.step1")}</li>
+            <li>{t("samsung.step2")}</li>
+          </ol>
+        )} />
+        <div className="actions">
+          <button type="button" onClick={() => samsungRef.current?.click()}>{t("samsung.pick")}</button>
+          <input ref={samsungRef} type="file" accept=".csv,text/csv,text/comma-separated-values" multiple hidden onChange={(e) => e.target.files?.length && importSamsung(e.target.files)} />
+        </div>
+        {samsung.text && <p className={"status " + (samsung.kind ?? "")} role="status">{samsung.text}</p>}
+          </div>
+        </details>
+      </section>
       <section className="block">
         <Head title={t("sheets.title")} help={t("sheets.help")} />
         <span className={"status" + (sheets?.lastError ? " err" : sheets?.lastSentAt ? " ok" : "")} role="status">
@@ -270,9 +345,83 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         )}
         {sheetMsg.text && <span className={"status " + (sheetMsg.kind ?? "")} role="status">{sheetMsg.text}</span>}
       </section>
-
+        </>
+      )}
+      {cat === "sources" && (
+        <>
       <section className="block">
-        <Head title={t("habit.manage")} help={t("habit.manageHelp")} />
+        {!settings.healthLinked && <p className="help-text">{isNative ? t("hc.linkFirst") : t("hc.linkFirstWeb")}</p>}
+        <div className={"src-list" + (settings.healthLinked ? "" : " locked")}>
+          {SOURCE_KEYS.map((k) => (
+            <div className="src-row" key={k}>
+              <span>{t(`src.${k}` as MessageKey)}</span>
+              <div className="seg full" role="radiogroup" aria-label={t(`src.${k}` as MessageKey)}>
+                <button type="button" role="radio" disabled={!settings.healthLinked} aria-checked={fromWatch(settings, k)} className={fromWatch(settings, k) ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: true } })}>{t("src.samsung")}</button>
+                <button type="button" role="radio" disabled={!settings.healthLinked} aria-checked={!fromWatch(settings, k)} className={!fromWatch(settings, k) ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: false } })}>{t("src.manual")}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+        </>
+      )}
+      {cat === "reminders" && (
+        <>
+      <section className="block">
+        {!isNative && (
+          <>
+            <p className="help-text">{t("remind.webOnly")}</p>
+            <a className="btn primary block" href={APK_URL}>{t("remind.getApk")}</a>
+          </>
+        )}
+        {isNative && !notifOk && (
+          <>
+            <p className="status err" style={{ margin: 0 }}>{t("remind.denied")}</p>
+            <div className="actions"><button type="button" className="primary" onClick={() => void askNotifications().then(setNotifOk)}>{t("remind.allow")}</button></div>
+          </>
+        )}
+        {(() => {
+          const ev = settings.reminders.evening;
+          const onOff = (on: boolean, set: (v: boolean) => void, label: string) => (
+            <div className="seg full" role="radiogroup" aria-label={label}>
+              <button type="button" role="radio" aria-checked={on} className={on ? "on" : ""} onClick={() => set(true)}>{t("remind.on")}</button>
+              <button type="button" role="radio" aria-checked={!on} className={!on ? "on" : ""} onClick={() => set(false)}>{t("remind.off")}</button>
+            </div>
+          );
+          return (
+            <>
+              {isNative && <p className="status" style={{ margin: 0 }}>{t("remind.widgetHint")}</p>}
+              <span className="sub-h">{t("remind.evening")}</span>
+              {onOff(ev.on, (v) => setReminder("evening", { on: v }), t("remind.evening"))}
+              <div className="fields three">
+                <label className="field"><span>{t("remind.from")}</span>
+                  <input type="time" value={ev.time} disabled={!ev.on} onChange={(e) => e.target.value && setReminder("evening", { time: e.target.value })} />
+                </label>
+                <label className="field"><span>{t("remind.until")}</span>
+                  <input type="time" value={ev.until ?? ""} disabled={!ev.on} onChange={(e) => e.target.value && setReminder("evening", { until: e.target.value })} />
+                </label>
+                <label className="field"><span>{t("remind.every")}</span>
+                  <select value={ev.every ?? 5} disabled={!ev.on} onChange={(e) => setReminder("evening", { every: Number(e.target.value) })}>
+                    {[5, 10, 15, 30].map((m) => <option key={m} value={m}>{m} {t("common.min")}</option>)}
+                  </select>
+                </label>
+              </div>
+              <span className="sub-h">{t("remind.includeBp")}</span>
+              {onOff(settings.reminders.bp.on, (v) => setReminder("bp", { on: v }), t("remind.includeBp"))}
+              <span className="sub-h">{t("remind.review")}</span>
+              <div className="remind-ctl">
+                {onOff(settings.reminders.review.on, (v) => setReminder("review", { on: v }), t("remind.review"))}
+                <input type="time" aria-label={t("remind.time")} value={settings.reminders.review.time} disabled={!settings.reminders.review.on} onChange={(e) => e.target.value && setReminder("review", { time: e.target.value })} />
+              </div>
+            </>
+          );
+        })()}
+      </section>
+        </>
+      )}
+      {cat === "habits" && (
+        <>
+      <section className="block">
         <div className="ex-list">
           {settings.habits.map((h) => (
             <details className="ex-card" key={h.id}>
@@ -291,15 +440,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
                 <label className="field"><span>{t("habit.minVersion")}</span>
                   <input type="text" maxLength={120} defaultValue={h.minVersion} onBlur={(e) => e.target.value !== h.minVersion && setHabit(h.id, { minVersion: e.target.value.trim() })} />
                 </label>
-                <div className="fields two">
-                  <label className="field"><span>{t("habit.remind")}</span>
-                    <input type="time" value={h.remind?.from ?? ""} onChange={(e) => setHabit(h.id, { remind: e.target.value ? { from: e.target.value, until: h.remind?.until ?? "21:30", everyMin: h.remind?.everyMin ?? 25 } : null })} />
-                  </label>
-                  <label className="field"><span>{t("habit.remindUntil")}</span>
-                    <input type="time" value={h.remind?.until ?? ""} disabled={!h.remind} onChange={(e) => h.remind && e.target.value && setHabit(h.id, { remind: { ...h.remind, until: e.target.value } })} />
-                  </label>
-                </div>
-                {h.remind && <button type="button" className="link" onClick={() => setHabit(h.id, { remind: null })}>{t("habit.noRemind")}</button>}
+
                 {(h.fields ?? []).map((fd, i) => (
                   <div className="fields two" key={fd.key}>
                     <label className="field"><span>{t("habit.fieldLabel")}</span>
@@ -319,115 +460,20 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         </div>
         <button type="button" className="link" onClick={addHabit}>{t("habit.add")}</button>
       </section>
-
+        </>
+      )}
+      {cat === "look" && (
+        <>
       <section className="block">
-        <Head title={t("remind.title")} help={<>{t("remind.help")} {isNative ? t("remind.widgetHint") : ""}</>} />
-        {!isNative && (
-          <>
-            <p className="help-text">{t("remind.webOnly")}</p>
-            <a className="btn primary block" href={APK_URL}>{t("remind.getApk")}</a>
-          </>
-        )}
-        {isNative && !notifOk && (
-          <>
-            <p className="status err" style={{ margin: 0 }}>{t("remind.denied")}</p>
-            <div className="actions"><button type="button" className="primary" onClick={() => void askNotifications().then(setNotifOk)}>{t("remind.allow")}</button></div>
-          </>
-        )}
-        <div className="src-list">
-          {REMINDER_KINDS.map((k) => {
-            const r = settings.reminders[k];
-            return (
-              <div className="src-row" key={k}>
-                <span>{t(`remind.${k}` as MessageKey)}</span>
-                <div className="remind-ctl">
-                  <div className="seg full" role="radiogroup" aria-label={t(`remind.${k}` as MessageKey)}>
-                    <button type="button" role="radio" aria-checked={r.on} className={r.on ? "on" : ""} onClick={() => setReminder(k, { on: true })}>{t("remind.on")}</button>
-                    <button type="button" role="radio" aria-checked={!r.on} className={!r.on ? "on" : ""} onClick={() => setReminder(k, { on: false })}>{t("remind.off")}</button>
-                  </div>
-                  <input type="time" aria-label={t("remind.time")} value={r.time} disabled={!r.on} onChange={(e) => e.target.value && setReminder(k, { time: e.target.value })} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-
-      <section className="block">
-        <Head title={t("hc.title")} help={<>{t("hc.help")} {t("hc.what")}</>} />
-        {isNative ? (
-          <>
-            <span className={"status" + (health?.lastError ? " err" : health?.on ? " ok" : "")} role="status">
-              {!health?.on ? t("hc.state.off") : health.lastError ? t("hc.state.error", { e: health.lastError }) : hcTime ? t("hc.state.on", { t: hcTime, n: health.lastCount ?? 0 }) : t("hc.state.never")}
-            </span>
-            <Head as="label" title={null} helpLabel={t("hc.how")} help={(
-              <ol className="steps-list"><li>{t("hc.step1")}</li><li>{t("hc.step2")}</li><li>{t("hc.step3")}</li></ol>
-            )} />
-            <div className="actions">
-              {health?.on ? (
-                <>
-                  <button type="button" className="primary" onClick={() => { setHcMsg({ text: "…" }); void pullHealth(30).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.pullNow")}</button>
-                  <button type="button" onClick={() => { setHcMsg({ text: t("hc.historyLoading") }); void connectHealth().then(() => pullHealth(HISTORY_DAYS)).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.history")}</button>
-                  <button type="button" onClick={() => { setDiag(null); void diagnoseHealth().then(setDiag); }}>{t("hc.diag")}</button>
-                  <button type="button" onClick={() => void openHealthSettings()}>{t("hc.permissions")}</button>
-                  <button type="button" className="danger" onClick={() => void disconnectHealth()}>{t("hc.disconnect")}</button>
-                </>
-              ) : <button type="button" className="primary" onClick={hcConnect}>{t("hc.connect")}</button>}
-            </div>
-            {hcMsg.text && <span className={"status " + (hcMsg.kind ?? "")} role="status">{hcMsg.text}</span>}
-            {diag && (
-              <div className="diag">
-                <b>{t("hc.diagTitle")}</b>
-                <ul className="plain">
-                  {diag.map((r) => (
-                    <li key={r.type} className={!r.granted || r.error || !r.count ? "bad" : "good"}>
-                      <span>{t(`hc.diag.type.${r.type}` as MessageKey)}</span>
-                      <span>{!r.granted ? t("hc.diag.noPerm") : r.error ? r.error : !r.count ? t("hc.diag.none") : t("hc.diag.count", { n: r.count, d: (r.last ?? "").slice(0, 10) })}
-                        {r.sources.length > 0 && <small>{t("hc.diag.from", { s: r.sources.join(", ") })}</small>}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="status" style={{ margin: 0 }}>{t("hc.diag.hint")}</p>
-              </div>
-            )}
-          </>
-        ) : <p className="help-text">{t("hc.webOnly")}</p>}
-        <details>
-          <summary>{t("hc.fileImport")}</summary>
-          <div className="ctx">
-        <Head as="label" title={null} helpLabel={t("help.samsung.how")} help={(
-          <ol className="steps-list">
-            <li>{t("samsung.step1")}</li>
-            <li>{t("samsung.step2")}</li>
-          </ol>
-        )} />
-        <div className="actions">
-          <button type="button" onClick={() => samsungRef.current?.click()}>{t("samsung.pick")}</button>
-          <input ref={samsungRef} type="file" accept=".csv,text/csv,text/comma-separated-values" multiple hidden onChange={(e) => e.target.files?.length && importSamsung(e.target.files)} />
-        </div>
-        {samsung.text && <p className={"status " + (samsung.kind ?? "")} role="status">{samsung.text}</p>}
-          </div>
-        </details>
-      </section>
-
-      <section className="block">
-        <Head title={t("src.title")} help={t("src.intro")} />
-        {!settings.healthLinked && <p className="help-text">{isNative ? t("hc.linkFirst") : t("hc.linkFirstWeb")}</p>}
-        <div className={"src-list" + (settings.healthLinked ? "" : " locked")}>
-          {SOURCE_KEYS.map((k) => (
-            <div className="src-row" key={k}>
-              <span>{t(`src.${k}` as MessageKey)}</span>
-              <div className="seg full" role="radiogroup" aria-label={t(`src.${k}` as MessageKey)}>
-                <button type="button" role="radio" disabled={!settings.healthLinked} aria-checked={fromWatch(settings, k)} className={fromWatch(settings, k) ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: true } })}>{t("src.samsung")}</button>
-                <button type="button" role="radio" disabled={!settings.healthLinked} aria-checked={!fromWatch(settings, k)} className={!fromWatch(settings, k) ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: false } })}>{t("src.manual")}</button>
-              </div>
-            </div>
+        <span className="sub-h">{t("pal.title")}</span>
+        <div className="pal-grid">
+          {PALETTES.map((p) => (
+            <button key={p} type="button" className={"pal" + (settings.palette === p ? " on" : "")} aria-pressed={settings.palette === p} onClick={() => updateSettings({ palette: p })}>
+              <i>{PAL_SWATCH[p].map((c) => <b key={c} style={{ background: c }} />)}</i>
+              <span>{t(`pal.${p}` as MessageKey)}</span>
+            </button>
           ))}
         </div>
-      </section>
-
-      <section className="block">
         <div className="fields two">
           <label className="field"><span>{t("settings.lang")}</span>
             <select value={settings.lang} onChange={(e) => updateSettings({ lang: e.target.value as Lang })}>
@@ -448,9 +494,11 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </div>
         </div>
       </section>
-
+        </>
+      )}
+      {cat === "program" && (
+        <>
       <section className="block">
-        <Head title={t("settings.program")} help={<>{t("settings.startHint")} {t("settings.stepGoalHint")}</>} />
         <div className="fields">
           <label className="field"><span>{t("phase.label")}</span>
             <select value={settings.phase} onChange={(e) => updateSettings({ phase: e.target.value as Phase })}>
@@ -464,16 +512,19 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
             <input type="number" min={0} step={500} inputMode="numeric" value={goal} onChange={(e) => saveGoal(e.target.value)} />
           </label>
         </div>
-        <div className="field"><Head as="label" title={t("settings.bpMark")} help={t("settings.bpMarkHint")} />
+        <div className="field"><Head as="label" title={t("settings.bpMark")} />
           <div className="fields two">
             <Stepper value={String(settings.bpMark.sys)} onChange={(v) => num(v) && updateSettings({ bpMark: { ...settings.bpMark, sys: num(v)! } })} step={5} min={90} max={200} label={t("form.bpSys")} />
             <Stepper value={String(settings.bpMark.dia)} onChange={(v) => num(v) && updateSettings({ bpMark: { ...settings.bpMark, dia: num(v)! } })} step={5} min={50} max={130} label={t("form.bpDia")} />
           </div>
         </div>
       </section>
-
+        </>
+      )}
+      {cat === "data" && (
+        <>
       <section className="block">
-        <Head title={t("settings.data")} help={<>{t("settings.dataHint")} {t("data.format")}</>} right={<span className="status num">{t("settings.count", { n: count })}</span>} />
+        <span className="status num">{t("settings.count", { n: count })}</span>
         <div className="actions">
           <button type="button" onClick={exportJson}>{t("settings.backup")}</button>
           <button type="button" onClick={() => fileRef.current?.click()}>{t("settings.import")}</button>
@@ -484,8 +535,12 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         </div>
         {status.text && <p className={"status " + (status.kind ?? "")} role="status">{status.text}</p>}
       </section>
+        </>
+      )}
+      {cat === "about" && (
+        <>
       <section className="block">
-        <Head title={t("ver.title")} help={t("ver.help")} right={<span className="status num">{t("ver.built", { t: built })}</span>} />
+        <Head title={t("ver.title")} right={<span className="status num">{t("ver.built", { t: built })}</span>} />
         <div className="actions">
           <button type="button" onClick={() => { void checkForUpdate().then(() => setVerMsg(t("ver.checked"))); }}>{t("ver.check")}</button>
         </div>
@@ -497,6 +552,8 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </>
         )}
       </section>
+        </>
+      )}
     </>
   );
 }

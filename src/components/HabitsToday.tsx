@@ -30,7 +30,7 @@ export function HabitsToday({ days, settings }: { days: DaysMap; settings: Setti
 
   return (
     <section className="block">
-      <Head title={t("habit.title")} help={t("habit.help")} />
+      <Head title={t("habit.title")} />
       {habits.map((h) => {
         const m = markOf(day, h.id);
         const row: HabitRow = { status: m?.status ?? "", detail: m?.detail ?? "", reason: m?.reasonIfNo ?? "", extra: { ...(m?.extra ?? {}) } };

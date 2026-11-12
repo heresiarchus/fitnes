@@ -86,7 +86,7 @@ export function Reports({ days, settings }: { days: DaysMap; settings: Settings 
       </>)}
 
       <section className="block no-print">
-        <Head title={t("reports.export")} help={t("reports.exportHint")} />
+        <Head title={t("reports.export")} />
         <div className="actions">
           <button type="button" onClick={exportCsv}>{t("reports.csv")}</button>
           <button type="button" onClick={() => window.print()}>{t("reports.print")}</button>
