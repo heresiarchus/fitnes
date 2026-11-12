@@ -207,6 +207,8 @@ function DayDetail({ date, day, settings }: { date: string; day: DayEntry | unde
     ].filter(Boolean);
     if (ctx.length) rows.push([t("cal.day.context"), ctx.join(" · ")]);
     if (day.energyAm != null || day.energyPm != null) rows.push([t("cal.day.energy"), `${day.energyAm ?? "—"} / ${day.energyPm ?? "—"}`]);
+    if (day.sleepMin) rows.push([t("cal.day.sleep"), `${Math.floor(day.sleepMin / 60)}:${String(day.sleepMin % 60).padStart(2, "0")}${day.sleepStart && day.sleepEnd ? ` · ${day.sleepStart}–${day.sleepEnd}` : ""}`]);
+    if (day.restingHr) rows.push([t("cal.day.restingHr"), String(day.restingHr)]);
     if (day.feel != null) rows.push([t("form.feel"), `${day.feel} / 5`]);
     if (day.positive) rows.push([t("form.positive"), day.positive]);
     if (day.note) rows.push([t("cal.day.note"), day.note]);

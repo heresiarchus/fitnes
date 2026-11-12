@@ -77,6 +77,12 @@ export function normalizeDay(raw: unknown, fallbackDate?: string): DayEntry | nu
   if (note) out.note = note;
   if (r.noWeight === true && out.weight == null) out.noWeight = true;
   if (r.ok === true && !out.flags) out.ok = true;
+  // Newer fields are carried over as they are: the backup is this app's own format.
+  const o = out as unknown as Record<string, unknown>;
+  for (const k of ["weightTime", "weightOrigin", "dayType", "episodeNote", "sleepStart", "sleepEnd"]) if (typeof r[k] === "string" && r[k]) o[k] = r[k];
+  for (const k of ["energyAm", "energyPm", "sleepMin", "restingHr"]) { const v = n(r[k]); if (v != null) o[k] = v; }
+  for (const k of ["partnerHere", "nightEpisode"]) if (typeof r[k] === "boolean") o[k] = r[k];
+  for (const k of ["habitLog", "bpEpisodes"]) if (Array.isArray(r[k]) && (r[k] as unknown[]).length) o[k] = r[k];
   const feel = n(r.feel);
   if (feel != null && feel >= 1 && feel <= 5) out.feel = Math.round(feel);
   const positive = str(r.positive);

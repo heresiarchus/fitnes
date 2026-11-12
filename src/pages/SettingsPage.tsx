@@ -3,8 +3,9 @@ import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { SyncBadge } from "../components/SyncBadge";
 import { Link } from "react-router-dom";
-import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useSheetsConfig, useSyncConfig } from "../db";
+import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useHealthState, useSheetsConfig, useSyncConfig } from "../db";
 import { parseHistory } from "../lib/history";
+import { connectHealth, disconnectHealth, openHealthSettings } from "../health";
 import { isScriptUrl } from "../lib/sheets";
 import { sendSheets } from "../sync/sheets";
 import sheetsScript from "../../docs/google-sheets-script.gs?raw";
@@ -94,6 +95,14 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
     setSamsung({ text: parts.join(" "), kind: "ok" });
   }
 
+  const health = useHealthState();
+  const [hcMsg, setHcMsg] = useState<Status>({ text: "" });
+  async function hcConnect() {
+    setHcMsg({ text: "…" });
+    const r = await connectHealth();
+    setHcMsg(r === "ok" ? { text: "" } : { text: t(`hc.res.${r}` as MessageKey), kind: "err" });
+  }
+  const hcTime = health?.lastPullAt ? new Date(health.lastPullAt).toLocaleString(settings.lang === "uk" ? "uk-UA" : "en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : null;
   const sheets = useSheetsConfig();
   const [sheetUrl, setSheetUrl] = useState("");
   const [sheetMsg, setSheetMsg] = useState<Status>({ text: "" });
@@ -212,7 +221,6 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         </span>
         {sheets ? (
           <div className="actions">
-            <button type="button" className="primary" onClick={sendNow}>{t("sheets.send")}</button>
             <button type="button" className="danger" onClick={() => { void setSheetsConfig(null); setSheetMsg({ text: "" }); }}>{t("sheets.disconnect")}</button>
           </div>
         ) : (
@@ -320,7 +328,29 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <Head title={t("samsung.title")} help={t("samsung.intro")} />
+        <Head title={t("hc.title")} help={t("hc.help")} />
+        {isNative ? (
+          <>
+            <span className={"status" + (health?.lastError ? " err" : health?.on ? " ok" : "")} role="status">
+              {!health?.on ? t("hc.state.off") : health.lastError ? t("hc.state.error", { e: health.lastError }) : hcTime ? t("hc.state.on", { t: hcTime, n: health.lastCount ?? 0 }) : t("hc.state.never")}
+            </span>
+            <Head as="label" title={null} helpLabel={t("hc.how")} help={(
+              <ol className="steps-list"><li>{t("hc.step1")}</li><li>{t("hc.step2")}</li><li>{t("hc.step3")}</li></ol>
+            )} />
+            <div className="actions">
+              {health?.on ? (
+                <>
+                  <button type="button" onClick={() => void openHealthSettings()}>{t("hc.permissions")}</button>
+                  <button type="button" className="danger" onClick={() => void disconnectHealth()}>{t("hc.disconnect")}</button>
+                </>
+              ) : <button type="button" className="primary" onClick={hcConnect}>{t("hc.connect")}</button>}
+            </div>
+            {hcMsg.text && <span className={"status " + (hcMsg.kind ?? "")} role="status">{hcMsg.text}</span>}
+          </>
+        ) : <p className="help-text">{t("hc.webOnly")}</p>}
+        <details>
+          <summary>{t("hc.fileImport")}</summary>
+          <div className="ctx">
         <Head as="label" title={null} helpLabel={t("help.samsung.how")} help={(
           <ol className="steps-list">
             <li>{t("samsung.step1")}</li>
@@ -332,6 +362,8 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           <input ref={samsungRef} type="file" accept=".csv,text/csv,text/comma-separated-values" multiple hidden onChange={(e) => e.target.files?.length && importSamsung(e.target.files)} />
         </div>
         {samsung.text && <p className={"status " + (samsung.kind ?? "")} role="status">{samsung.text}</p>}
+          </div>
+        </details>
       </section>
 
       <section className="block">

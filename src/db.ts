@@ -5,7 +5,8 @@ import { DEFAULT_HABITS } from "./lib/habits";
 import type { DayEntry, DaysMap, Item, Settings, SheetsConfig, SyncConfig } from "./lib/types";
 
 interface SettingsRow extends Settings { key: "main" }
-type MetaRow = { key: "sync"; value: SyncConfig } | { key: "sheets"; value: SheetsConfig };
+type MetaRow = { key: "sync"; value: SyncConfig } | { key: "sheets"; value: SheetsConfig } | { key: "health"; value: HealthState };
+export interface HealthState { on: boolean; lastPullAt?: string; lastError?: string; lastCount?: number }
 
 export const db = new Dexie("fitnes") as Dexie & {
   days: EntityTable<DayEntry, "date">;
@@ -26,7 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   stepGoal: null,
   lang: "uk",
   theme: "auto",
-  sources: { steps: true, exercise: true, weight: false, bp: false },
+  sources: { steps: true, exercise: true, weight: false, bp: false, sleep: true },
   bpMark: { sys: 135, dia: 85 },
   reminders: {
     weigh: { on: true, time: "08:00" }, evening: { on: true, time: "21:00" },
@@ -172,4 +173,14 @@ export async function setSheetsConfig(value: SheetsConfig | null) {
 
 export function useSheetsConfig(): SheetsConfig | null | undefined {
   return useLiveQuery(async () => ((await db.meta.get("sheets"))?.value as SheetsConfig | undefined) ?? null, []);
+}
+
+export async function getHealthState(): Promise<HealthState | undefined> {
+  return (await db.meta.get("health"))?.value as HealthState | undefined;
+}
+export async function setHealthState(value: HealthState) {
+  await db.meta.put({ key: "health", value });
+}
+export function useHealthState(): HealthState | null | undefined {
+  return useLiveQuery(async () => ((await db.meta.get("health"))?.value as HealthState | undefined) ?? null, []);
 }

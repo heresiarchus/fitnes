@@ -27,8 +27,8 @@ describe("backup import", () => {
     expect(days[0].date).toBe("2026-11-12");
   });
   it("round-trips its own backup", () => {
-    const d: DayEntry = { date: "2026-11-11", updatedAt: "x", steps: 1, note: "a" };
-    const settings = { phase: "2" as const, startDate: "2026-11-10", stepGoal: 6000, lang: "uk" as const, theme: "auto" as const, updatedAt: "t", sources: { steps: true, exercise: false, weight: false, bp: true }, bpMark: { sys: 135, dia: 85 }, reminders: { weigh: { on: true, time: "08:00" }, evening: { on: false, time: "21:00" }, bp: { on: false, time: "20:00" }, review: { on: true, time: "22:20" } }, habits: [], hideWeight: false };
+    const d: DayEntry = { date: "2026-11-11", updatedAt: "x", steps: 1, note: "a", feel: 4, positive: "ok", dayType: "duty", partnerHere: false, sleepMin: 400, habitLog: [{ habitId: "a", status: "min" }] };
+    const settings = { phase: "2" as const, startDate: "2026-11-10", stepGoal: 6000, lang: "uk" as const, theme: "auto" as const, updatedAt: "t", sources: { steps: true, exercise: false, weight: false, bp: true, sleep: true }, bpMark: { sys: 135, dia: 85 }, reminders: { weigh: { on: true, time: "08:00" }, evening: { on: false, time: "21:00" }, bp: { on: false, time: "20:00" }, review: { on: true, time: "22:20" } }, habits: [], hideWeight: false };
     const parsed = parseBackup(JSON.stringify(makeBackup([d], settings)));
     expect(parsed.days).toEqual([d]);
     expect(parsed.settings).toEqual(settings);
