@@ -1,7 +1,7 @@
 import Dexie, { type EntityTable } from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo } from "react";
-import { DEFAULT_HABITS } from "./lib/habits";
+import { DEFAULT_HABITS, migrateHabits } from "./lib/habits";
 import type { DayEntry, DaysMap, Item, Settings, SheetsConfig, SyncConfig } from "./lib/types";
 
 interface SettingsRow extends Settings { key: "main" }
@@ -27,10 +27,12 @@ export const DEFAULT_SETTINGS: Settings = {
   stepGoal: null,
   lang: "uk",
   theme: "auto",
+  healthLinked: false,
+  remindersV: 2,
   sources: { steps: true, exercise: true, weight: false, bp: false, sleep: true },
   bpMark: { sys: 135, dia: 85 },
   reminders: {
-    weigh: { on: true, time: "08:00" }, evening: { on: true, time: "21:00" },
+    weigh: { on: false, time: "08:00" }, evening: { on: true, time: "21:00" },
     bp: { on: false, time: "20:00" }, review: { on: true, time: "22:20" },
   },
   habits: DEFAULT_HABITS,
@@ -40,7 +42,9 @@ export const DEFAULT_SETTINGS: Settings = {
 
 /** Fills in defaults, including nested ones, for settings saved by older versions. */
 export function normalizeSettings(raw: Partial<Settings> | undefined): Settings {
-  const r = raw ?? {};
+  const r = { ...(raw ?? {}) };
+  // v2: reminders only in the evening, and only for what is still missing.
+  if (r.reminders && r.remindersV !== 2) r.reminders = { ...r.reminders, weigh: { ...r.reminders.weigh, on: false } };
   return {
     ...DEFAULT_SETTINGS, ...r,
     sources: { ...DEFAULT_SETTINGS.sources, ...(r.sources ?? {}) },
@@ -51,7 +55,8 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
       bp: { ...DEFAULT_SETTINGS.reminders.bp, ...(r.reminders?.bp ?? {}) },
       review: { ...DEFAULT_SETTINGS.reminders.review, ...(r.reminders?.review ?? {}) },
     },
-    habits: Array.isArray(r.habits) && r.habits.length ? r.habits : DEFAULT_HABITS,
+    remindersV: 2,
+    habits: migrateHabits(Array.isArray(r.habits) && r.habits.length ? r.habits : DEFAULT_HABITS),
   };
 }
 

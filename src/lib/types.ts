@@ -77,6 +77,10 @@ export interface Settings {
   stepGoal: number | null;
   lang: Lang;
   theme: Theme;
+  /** Set by the phone once Samsung Health (via Health Connect) is connected; synced to other devices. */
+  healthLinked: boolean;
+  /** Bumped when reminder defaults change, to migrate saved settings once. */
+  remindersV?: number;
   /** Which fields are filled from Samsung Health (true) or typed by hand (false). */
   sources: Record<SourceKey, boolean>;
   /** Blood pressure at or above this is highlighted in the calendar. */
@@ -164,3 +168,6 @@ export interface MonthItem extends ItemBase { kind: "hmonth"; month: string; tra
 export type Item = TaskItem | DiaryItem | MonthItem;
 
 export const DIARY_TAGS = ["move", "food", "work", "study", "people", "other"] as const;
+
+/** A field comes from the watch only when Samsung Health is actually connected and the user chose it. */
+export const fromWatch = (s: Pick<Settings, "healthLinked" | "sources">, k: SourceKey) => s.healthLinked && s.sources[k];

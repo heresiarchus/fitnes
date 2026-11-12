@@ -1,6 +1,6 @@
 import { addDays, iso } from "./date";
 import { activeHabits, daysWithoutMark, markOf } from "./habits";
-import type { DaysMap, Habit, ReminderKind, Reminders } from "./types";
+import type { DayEntry, DaysMap, Habit, ReminderKind, Reminders } from "./types";
 import { REMINDER_KINDS } from "./types";
 
 export interface PlannedReminder {
@@ -12,12 +12,20 @@ export interface PlannedReminder {
   minOnly?: boolean;
 }
 
+/** What the evening check would still ask for: the weight answer and the day's rating. */
+export function missingToday(d: DayEntry | undefined): ("weight" | "feel")[] {
+  const out: ("weight" | "feel")[] = [];
+  if (d?.weight == null && !d?.noWeight) out.push("weight");
+  if (d?.feel == null && !d?.ok && !d?.flags?.length) out.push("feel");
+  return out;
+}
+
 /** Whether today's entry already contains what the reminder asks for. */
 export function isDone(kind: ReminderKind, days: DaysMap, date: string): boolean {
   const d = days[date];
   if (kind === "review" || !d) return false;
   if (kind === "weigh") return d.weight != null || !!d.noWeight;
-  if (kind === "evening") return d.feel != null || !!d.ok || !!d.flags?.length;
+  if (kind === "evening") return missingToday(d).length === 0;
   return !!(d.bp?.e1 || d.bp?.e2);
 }
 

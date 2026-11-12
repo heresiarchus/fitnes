@@ -36,3 +36,17 @@ export function SyncBadge({ detailed = false }: { detailed?: boolean }) {
   if (!detailed && (s.state === "off" || s.state === "error")) return <Link to="/settings" className="sync-link">{body}</Link>;
   return body;
 }
+
+/** Prominent notice while this device keeps entries only for itself. */
+export function SyncWarning() {
+  const { t } = useI18n();
+  const s = useSyncStatus();
+  if (s.state !== "off") return null;
+  return (
+    <section className="warn-card" role="alert">
+      <b>{t("sync.warnTitle")}</b>
+      <span>{t("sync.warnText")}</span>
+      <Link className="btn block" to="/settings">{t("sync.warnBtn")}</Link>
+    </section>
+  );
+}

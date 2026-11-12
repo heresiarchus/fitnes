@@ -15,7 +15,7 @@ describe("planReminders", () => {
   });
   it("drops today's reminder once the data is logged, keeps tomorrow's", () => {
     const now = new Date(2026, 10, 11, 7, 0);
-    const days = { "2026-11-11": { date: "2026-11-11", updatedAt: u, noWeight: true as const, ok: true as const } };
+    const days = { "2026-11-11": { date: "2026-11-11", updatedAt: u, noWeight: true as const, feel: 4 } };
     const plan = planReminders(r, days, now, 2);
     expect(plan.map((p) => [p.kind, p.at.getDate()])).toEqual([["weigh", 12], ["evening", 12]]);
   });
@@ -47,5 +47,14 @@ describe("habit and review reminders", () => {
   it("schedules the weekly review on Sunday only", () => {
     const plan = planReminders(off, {}, new Date(2026, 10, 11, 12, 0), 7);
     expect(plan.map((p) => [p.kind, p.at.getDay(), p.at.getHours(), p.at.getMinutes()])).toEqual([["review", 0, 22, 20]]);
+  });
+});
+
+describe("evening check", () => {
+  it("is skipped when the weight came from the watch and the day is rated", async () => {
+    const { missingToday } = await import("./reminders");
+    expect(missingToday(undefined)).toEqual(["weight", "feel"]);
+    expect(missingToday({ date: "d", updatedAt: u, weight: 130 })).toEqual(["feel"]);
+    expect(missingToday({ date: "d", updatedAt: u, weight: 130, feel: 3 })).toEqual([]);
   });
 });

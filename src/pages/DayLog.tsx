@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChipScale } from "../components/ChipScale";
-import { SyncBadge } from "../components/SyncBadge";
+import { SyncWarning } from "../components/SyncBadge";
 import { ChipScale as Scale } from "../components/ChipScale";
 import { HabitMarker } from "../components/HabitMarker";
 import { Head } from "../components/Head";
@@ -11,10 +11,13 @@ import { deleteDay, deleteItem, saveDay, saveItem, useItems } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import { addDays, ddmm, iso, parseIso } from "../lib/date";
 import { type DayFormState, fromFormState, missingRequired, type SetRow, toFormState } from "../lib/dayForm";
+import { fmtInt } from "../lib/format";
 import { fmt, num } from "../lib/format";
 import { activeHabits } from "../lib/habits";
 import { lastStrengthFor, previousBp, previousWeight, previousWorkout } from "../lib/stats";
-import type { BpSlot, DayEntry, DaysMap, Flag, PainArea, Settings } from "../lib/types";
+import type { BpSlot, DayEntry, DaysMap, Flag, PainArea, Settings, SourceKey } from "../lib/types";
+import { fromWatch, SOURCE_KEYS } from "../lib/types";
+import { bpSummary } from "../lib/stats";
 import { BP_SLOTS, DAY_TYPES, EXERCISES, FLAGS, HEART_FLAGS, PAIN_AREAS } from "../lib/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -44,7 +47,7 @@ interface FormProps {
   onDate: (d: string) => void;
 }
 
-type Status = { text: string; kind?: "ok" | "err" };
+const EVENING_HOUR = 17;
 
 function cardioKindOf(what: string, t: (k: MessageKey) => string, hasMinutes: boolean): string {
   const w = what.trim().toLowerCase();
@@ -63,18 +66,14 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
   /** Confirms the weight; for today's entry also notes the time of the weigh-in. */
   const weighed = (p: DayFormState, weight: string): DayFormState => ({ ...p, weight, weightChoice: "yes", weightTime: p.weightTime || (date === today ? nowHm() : "") });
   const [cardioKind, setCardioKind] = useState(() => cardioKindOf(entry?.cardioWhat ?? "", t, entry?.cardioMin != null));
-  const [status, setStatus] = useState<Status>(entry ? { text: t("form.exists") } : { text: "" });
-  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState("");
+  const watch: SourceKey[] = SOURCE_KEYS.filter((k) => fromWatch(settings, k));
+  const isWatch = (k: SourceKey) => watch.includes(k);
   const bpWeek = date >= settings.startDate && date < iso(addDays(parseIso(settings.startDate), 7));
   const [bpOpen, setBpOpen] = useState(!!entry?.bp || bpWeek);
   const lastWorkout = previousWorkout(days, date);
   const lastBp = previousBp(days, date);
-
-  useEffect(() => {
-    if (status.kind !== "ok") return;
-    const id = setTimeout(() => setStatus({ text: "" }), 4000);
-    return () => clearTimeout(id);
-  }, [status]);
 
   const set = <K extends keyof DayFormState>(k: K, v: DayFormState[K]) => setF((p) => ({ ...p, [k]: v }));
   const setEx = (id: string, k: keyof SetRow, v: string) => setF((p) => ({ ...p, ex: { ...p.ex, [id]: { ...p.ex[id], [k]: v } } }));
@@ -82,10 +81,9 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
   const setBp = (slot: BpSlot, k: "sys" | "dia" | "pulse", v: string) => setF((p) => ({ ...p, bp: { ...p.bp, [slot]: { ...p.bp[slot], [k]: v } } }));
   const setPain = (a: PainArea, v: string) => setF((p) => ({ ...p, pain: { ...p.pain, [a]: v } }));
   const toggleFlag = (fl: Flag) => setF((p) => ({ ...p, ok: false, flags: p.flags.includes(fl) ? p.flags.filter((x) => x !== fl) : [...p.flags, fl] }));
-  const weightRef = useRef<HTMLFieldSetElement>(null);
-  const feelingRef = useRef<HTMLFieldSetElement>(null);
-  const [checked, setChecked] = useState(false);
-  const missing = checked ? missingRequired(f) : [];
+  const watchWeight = isWatch("weight") && entry?.weight != null;
+  const evening = date < today || new Date().getHours() >= EVENING_HOUR;
+  const left = missingRequired(f, watchWeight).filter((m) => m === "weight" || evening);
 
   const [openEx, setOpenEx] = useState<string | null>(null);
   /** "2×15 · 7,5 кг" */
@@ -115,22 +113,22 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
     else set("cardioWhat", t(`cardio.${kind}` as MessageKey));
   }
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (saving) return;
-    const miss = missingRequired(f);
-    if (miss.length) {
-      setChecked(true);
-      setStatus({ text: t(miss[0] === "weight" ? "form.needWeight" : "form.needFeeling"), kind: "err" });
-      (miss[0] === "weight" ? weightRef : feelingRef).current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    const data = fromFormState(date, f, new Date(), {
-      habits, keep: entry,
+  // Autosave: every change is written shortly after it is made; nothing waits for an evening "save".
+  const entryRef = useRef(entry);
+  entryRef.current = entry;
+  const fRef = useRef(f);
+  const dirty = useRef(false);
+  const firstRender = useRef(true);
+
+  async function persist() {
+    if (!dirty.current) return;
+    dirty.current = false;
+    const keep = entryRef.current;
+    const data = fromFormState(date, fRef.current, new Date(), {
+      habits, keep, watch,
       labels: { walk: t("cal.day.walk").toLowerCase(), strength: t("cal.day.strength").toLowerCase(), min: t("common.min"), auto: t("habit.auto") },
     });
-    if (!data) { setStatus({ text: t("form.empty"), kind: "err" }); return; }
-    setSaving(true);
+    if (!data) return;
     try {
       await saveDay(data);
       // The day's good thing also lives in the diary, so it reaches the therapist export.
@@ -139,13 +137,24 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
       if (data.positive) {
         if (existing?.event !== data.positive) await saveItem({ id, kind: "diary", date, event: data.positive, share: existing?.share ?? false, createdAt: existing?.createdAt ?? new Date().toISOString(), updatedAt: "" });
       } else if (existing) await deleteItem(existing);
-      setStatus({ text: t("form.saved", { d: ddmm(date) }), kind: "ok" });
+      setSavedAt(new Date().toTimeString().slice(0, 5));
+      setSaveErr("");
     } catch (err) {
-      setStatus({ text: t("form.error", { e: (err as Error).message }), kind: "err" });
-    } finally {
-      setSaving(false);
+      setSaveErr(t("form.error", { e: (err as Error).message }));
     }
   }
+
+  useEffect(() => {
+    fRef.current = f;
+    if (firstRender.current) { firstRender.current = false; return; }
+    dirty.current = true;
+    const id = setTimeout(() => void persist(), 700);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f]);
+  // Leaving the screen saves what is pending.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => () => { void persist(); }, []);
 
   async function onDelete() {
     if (!confirm(t("form.deleteConfirm", { d: ddmm(date) }))) return;
@@ -157,7 +166,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
 
   return (
     <section className="block">
-      <Head title={t("form.title")} help={t("help.save")} />
+      <Head title={t("form.title")} help={t("help.save")} right={<span className={"status" + (saveErr ? " err" : savedAt ? " ok" : "")}>{saveErr || (savedAt ? t("day.saved", { t: savedAt }) : t("day.autosave"))}</span>} />
       <div className="pnav">
         <button type="button" aria-label={t("form.prevDay")} onClick={() => shift(-1)}>‹</button>
         <div className="pnav-mid">
@@ -166,30 +175,45 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
         </div>
         <button type="button" aria-label={t("form.nextDay")} onClick={() => shift(1)} disabled={date >= today}>›</button>
       </div>
-      <form onSubmit={onSubmit} noValidate>
-        <fieldset ref={weightRef} className={missing.includes("weight") ? "need" : ""}>
-          <Head as="legend" title={<>{t("form.weight")}<span className="req">{t("form.required")}</span></>} help={t("help.weight")} />
+      <p className={"day-left" + (left.length ? "" : " done")}>
+        {left.length ? t("day.left", { list: left.map((m) => t(m === "weight" ? "day.left.weight" : "day.left.feel")).join(", ") }) : evening || f.feel ? t("day.allDone") : t("day.morningDone")}
+      </p>
+      <form onSubmit={(e) => e.preventDefault()} noValidate>
+        <fieldset>
+          <Head as="legend" title={<>{t("form.weight")}<span className="req">{t("form.required")}</span>{isWatch("weight") && <span className="src-tag">{t("form.fromSamsung")}</span>}</>} help={isWatch("weight") ? t("watch.help") : t("help.weight")} />
+          {isWatch("weight") ? (
+            <div className="watch-val">
+              {entry?.weight != null
+                ? <b>{t("watch.weight", { w: fmt(entry.weight, lang) })}{entry.weightTime ? ` · ${entry.weightTime}` : ""}</b>
+                : f.weightChoice === "no" ? <span className="status ok">✓ {t("form.noWeightChosen")}</span> : <span className="status">{t("watch.waiting")}</span>}
+              {entry?.weight == null && (
+                f.weightChoice === "no"
+                  ? <button type="button" className="pill" onClick={() => set("weightChoice", "pending")}>{t("form.weighAfterAll")}</button>
+                  : <button type="button" className="pill" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
+              )}
+            </div>
+          ) : (
           <div className={"weight-box" + (f.weightChoice === "yes" ? "" : " pending")}>
             <WeightPicker value={f.weight} onChange={(v) => setF((p) => weighed(p, v))} />
             <div className="weight-side">
               {f.weightChoice === "yes" && (
-                <>
-                  <span className="status ok">✓ {t("form.weightWillSave")}{settings.sources.weight && entry?.weight != null ? " · " + t("form.fromSamsung") : ""}</span>
-                  <button type="button" className="link" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
-                </>
+                <div className="pill-row">
+                  <span className="status ok">✓ {t("form.weightWillSave")}</span>
+                  <button type="button" className="pill" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
+                </div>
               )}
               {f.weightChoice === "no" && (
-                <>
+                <div className="pill-row">
                   <span className="status ok">✓ {t("form.noWeightChosen")}</span>
-                  <button type="button" className="link" onClick={() => setF((p) => weighed(p, p.weight))}>{t("form.weighAfterAll")}</button>
-                </>
+                  <button type="button" className="pill" onClick={() => setF((p) => weighed(p, p.weight))}>{t("form.weighAfterAll")}</button>
+                </div>
               )}
               {f.weightChoice === "pending" && (
                 <>
                   <span className="status">{prevW ? t("form.weightPrefill", { d: ddmm(prevW.date) }) : t("form.weightFirst")}</span>
-                  <div className="actions">
-                    {prevW && <button type="button" className="primary" onClick={() => setF((p) => weighed(p, p.weight || String(prevW.weight)))}>{t("form.weightSame")} {fmt(num(f.weight) ?? prevW.weight, lang)}</button>}
-                    <button type="button" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
+                  <div className="pill-row">
+                    {prevW && <button type="button" className="primary compact" onClick={() => setF((p) => weighed(p, p.weight || String(prevW.weight)))}>{t("form.weightSame")} {fmt(num(f.weight) ?? prevW.weight, lang)}</button>}
+                    <button type="button" className="pill" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
                   </div>
                 </>
               )}
@@ -201,7 +225,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
               </label>
             </div>
           </div>
-          {missing.includes("weight") && <p className="status err" style={{ margin: 0 }}>{t("form.needWeight")}</p>}
+          )}
         </fieldset>
 
         {habits.length > 0 && (
@@ -214,13 +238,33 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
           </fieldset>
         )}
 
+        {watch.some((k) => k !== "weight") && (
+          <div className="watch-card">
+            <Head as="label" title={<b>{t("watch.title")}</b>} help={t("watch.help")} />
+            <ul className="watch-list">
+              {isWatch("steps") && <li>{entry?.steps != null ? t("watch.steps", { n: fmtInt(entry.steps, lang) }) : <span className="status">{t("cal.day.steps")}: {t("watch.waiting")}</span>}</li>}
+              {isWatch("exercise") && (entry?.walkMin || entry?.cardioMin ? (
+                <>
+                  {!!entry?.walkMin && <li>{t("watch.walk", { n: entry.walkMin })}</li>}
+                  {!!entry?.cardioMin && <li>{t("watch.cardio", { what: entry.cardioWhat || t("history.cardioDefault"), n: entry.cardioMin })}</li>}
+                </>
+              ) : <li><span className="status">{t("cal.day.walk")}: {t("watch.waiting")}</span></li>)}
+              {isWatch("bp") && (() => { const b = bpSummary(entry); const v = [b.morning, b.evening].filter(Boolean).map((x) => `${x!.sys}/${x!.dia}`).join(" · "); return <li>{v ? t("watch.bp", { v }) : <span className="status">{t("cal.day.bp")}: {t("watch.waiting")}</span>}</li>; })()}
+              {isWatch("sleep") && <li>{entry?.sleepMin ? `${t("cal.day.sleep")} ${Math.floor(entry.sleepMin / 60)}:${String(entry.sleepMin % 60).padStart(2, "0")}${entry.restingHr ? ` · ${t("cal.day.restingHr").toLowerCase()} ${entry.restingHr}` : ""}` : <span className="status">{t("cal.day.sleep")}: {t("watch.waiting")}</span>}</li>}
+            </ul>
+          </div>
+        )}
+
+        {!isWatch("steps") && (
         <fieldset>
-          <Head as="legend" title={<>{t("form.steps")}{settings.sources.steps && <span className="src-tag">{t("form.fromSamsung")}</span>}</>} help={settings.sources.steps ? t("form.stepsHint") : undefined} />
+          <Head as="legend" title={t("form.steps")} />
           <Stepper value={f.steps} onChange={(v) => set("steps", v)} step={500} max={100000} label={t("form.steps")} />
         </fieldset>
+        )}
 
+        {!isWatch("exercise") && (
         <fieldset>
-          <Head as="legend" title={<>{t("form.cardioBlock")}{settings.sources.exercise && <span className="src-tag">{t("form.fromSamsung")}</span>}</>} />
+          <Head as="legend" title={t("form.cardioBlock")} />
           <div className="fields">
             <div className="field"><span>{t("form.walk")}</span>
               <Stepper value={f.walk} onChange={(v) => set("walk", v)} step={5} max={600} label={t("form.walk")} />
@@ -253,6 +297,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
             )}
           </div>
         </fieldset>
+        )}
 
         <fieldset>
           <Head as="legend" title={t("form.strength")} help={t("form.strengthHint")} />
@@ -297,15 +342,21 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
           </div>
         </fieldset>
 
-        <fieldset ref={feelingRef} className={missing.includes("feeling") ? "need" : ""}>
-          <Head as="legend" title={<>{t("form.feel")}<span className="req">{t("form.required")}</span></>} help={t("form.feelHelp")} />
-          <ChipScale value={f.feel} onChange={(v) => set("feel", v)} values={[1, 2, 3, 4, 5]} label={t("form.feel")} clearable={false} />
-          <div className="scale-ends"><span>{t("form.feel.1")}</span><span>{t("form.feel.5")}</span></div>
-          {missing.includes("feeling") && <p className="status err" style={{ margin: 0 }}>{t("form.needFeeling")}</p>}
-          <label className="field"><span>{t("form.positive")}</span>
-            <textarea className="short" maxLength={500} value={f.positive} placeholder={t("form.positivePh")} onChange={(e) => set("positive", e.target.value)} />
-          </label>
-        </fieldset>
+        {(() => {
+          const body = (
+            <>
+              <Head as="label" title={<b className="habit-title">{t("form.feel")} <span className="req">{t("form.required")}</span></b>} help={t("form.feelHelp")} />
+              <ChipScale value={f.feel} onChange={(v) => set("feel", v)} values={[1, 2, 3, 4, 5]} label={t("form.feel")} clearable={false} />
+              <div className="scale-ends"><span>{t("form.feel.1")}</span><span>{t("form.feel.5")}</span></div>
+              <label className="field"><span>{t("form.positive")}</span>
+                <textarea className="short" maxLength={500} value={f.positive} placeholder={t("form.positivePh")} onChange={(e) => set("positive", e.target.value)} />
+              </label>
+            </>
+          );
+          return evening || f.feel || f.positive
+            ? <fieldset><legend>{t("day.evening")}</legend>{body}</fieldset>
+            : <details><summary>{t("day.evening")}</summary><p className="status" style={{ margin: "0 0 10px" }}>{t("day.eveningLater")}</p><div className="ctx">{body}</div></details>;
+        })()}
 
         <details>
           <summary>{t("form.body")}</summary>
@@ -378,12 +429,8 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
           <textarea maxLength={1000} value={f.note} placeholder={t("form.notePh")} onChange={(e) => set("note", e.target.value)} />
         </label>
 
-        <div className="savebar">
-          <button type="submit" className="primary" disabled={saving}>{t("form.save")}</button>
-          {entry && <button type="button" className="danger" onClick={onDelete}>{t("common.delete")}</button>}
-          <span className={"status" + (status.kind ? " " + status.kind : "")} role="status">{status.text}</span>
-        </div>
-        <SyncBadge />
+        {entry && <div className="actions"><button type="button" className="danger compact" onClick={onDelete}>{t("common.delete")}</button></div>}
+        <SyncWarning />
       </form>
     </section>
   );

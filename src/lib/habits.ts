@@ -1,6 +1,9 @@
 import { addDays, iso, parseIso } from "./date";
 import type { DayEntry, DaysMap, Habit, HabitMark } from "./types";
 
+export const EAT_WHAT = ["гаряча страва", "бутерброд / перекус", "фрукти / йогурт", "інше"];
+export const EAT_AT_PC = ["ні", "так, порцію в тарілці", "так, з пачки"];
+
 /** Starter catalogue. The user edits it in settings; nothing here is fixed in code paths. */
 export const DEFAULT_HABITS: Habit[] = [
   {
@@ -15,8 +18,8 @@ export const DEFAULT_HABITS: Habit[] = [
     id: "eat_before_pc", title: "Їжа до комп'ютера", minVersion: "поїсти хоч щось до того, як сісти",
     enabled: true, activeFrom: "2026-11-11", remind: { from: "19:00", until: "21:30", everyMin: 25 },
     fields: [
-      { key: "what", label: "Що їв", options: ["набір A", "набір B", "набір C", "інше"] },
-      { key: "atPc", label: "За комп'ютером", options: ["нічого", "відкладена порція", "з упаковки"] },
+      { key: "what", label: "Що їв", options: EAT_WHAT },
+      { key: "atPc", label: "Їв за комп'ютером", options: EAT_AT_PC },
     ],
   },
   { id: "bed_2330", title: "У ліжку о 23:30", minVersion: "лягти до опівночі", enabled: false, remind: null },
@@ -58,4 +61,12 @@ export function daysWithoutMark(days: DaysMap, habitId: string, date: string, ca
     n += 1;
   }
   return n;
+}
+
+/** Replaces the unclear first-draft options ("набір A/B/C") in settings saved by older versions. */
+export function migrateHabits(habits: Habit[]): Habit[] {
+  return habits.map((h) => {
+    if (!h.fields?.some((f) => f.options.some((o) => /^набір [ABC]$/.test(o)))) return h;
+    return { ...h, fields: h.fields.map((f) => (f.key === "what" ? { ...f, options: EAT_WHAT } : f.key === "atPc" ? { ...f, label: "Їв за комп'ютером", options: EAT_AT_PC } : f)) };
+  });
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { SyncBadge } from "../components/SyncBadge";
+import { SyncBadge, SyncWarning } from "../components/SyncBadge";
 import { StatGrid } from "../components/StatGrid";
 import { StepsChart } from "../components/StepsChart";
 import { WeightChart } from "../components/WeightChart";
@@ -30,6 +30,7 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
         <h1>{t("app.title")}</h1>
         <SyncBadge />
       </header>
+      <SyncWarning />
 
       <section className="today" aria-label={t("today.title")}>
         <div>

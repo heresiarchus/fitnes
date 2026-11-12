@@ -84,3 +84,20 @@ describe("habits and context in the day form", () => {
     expect(fromFormState("2026-11-11", f, now, { habits, labels })!.habitLog![0]).toEqual({ habitId: "move_before_pc", status: "min" });
   });
 });
+
+describe("saving the form never erases pulled data", () => {
+  it("keeps sleep always and watch metrics when they come from the watch", () => {
+    const keep: DayEntry = { date: "2026-11-12", updatedAt: "x", steps: 8000, walkMin: 25, walkIntensity: "light", sleepMin: 410, restingHr: 60, weight: 130.2, weightCond: "morning" };
+    const f = toFormState({ ...keep, steps: 100 }, "light");
+    f.feel = "3";
+    const d = fromFormState("2026-11-12", f, now, { keep, watch: ["steps", "exercise", "weight"] })!;
+    expect(d).toMatchObject({ steps: 8000, walkMin: 25, sleepMin: 410, restingHr: 60, weight: 130.2, feel: 3 });
+    const manual = fromFormState("2026-11-12", f, now, { keep })!;
+    expect(manual.steps).toBe(100);
+    expect(manual.sleepMin).toBe(410);
+  });
+  it("treats a watch weight as answered", () => {
+    const f = toFormState(undefined, "light");
+    expect(missingRequired(f, true)).toEqual(["feeling"]);
+  });
+});
