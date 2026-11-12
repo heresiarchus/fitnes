@@ -6,7 +6,7 @@ import type { DayEntry, DaysMap, Item, Settings, SheetsConfig, SyncConfig } from
 
 interface SettingsRow extends Settings { key: "main" }
 type MetaRow = { key: "sync"; value: SyncConfig } | { key: "sheets"; value: SheetsConfig } | { key: "health"; value: HealthState };
-export interface HealthState { on: boolean; lastPullAt?: string; lastError?: string; lastCount?: number }
+export interface HealthState { on: boolean; history?: boolean; lastPullAt?: string; lastFullAt?: string; lastError?: string; lastCount?: number }
 
 export const db = new Dexie("fitnes") as Dexie & {
   days: EntityTable<DayEntry, "date">;

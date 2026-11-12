@@ -64,3 +64,18 @@ export function mapHealth(input: {
   }
   return out;
 }
+
+/**
+ * Calendar days in the phone's time zone, newest last: [local midnight, next local midnight),
+ * the last one ending now. Built from calendar dates, so 23- and 25-hour days around
+ * daylight-saving changes stay exact.
+ */
+export function dayRanges(now: Date, days: number): { date: string; start: Date; end: Date }[] {
+  const out: { date: string; start: Date; end: Date }[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i + 1);
+    out.push({ date: iso(start), start, end: next.getTime() > now.getTime() ? now : next });
+  }
+  return out;
+}

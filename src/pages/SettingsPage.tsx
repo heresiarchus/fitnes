@@ -5,7 +5,7 @@ import { SyncBadge } from "../components/SyncBadge";
 import { Link } from "react-router-dom";
 import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useHealthState, useSheetsConfig, useSyncConfig } from "../db";
 import { parseHistory } from "../lib/history";
-import { connectHealth, diagnoseHealth, disconnectHealth, openHealthSettings, pullHealth, type TypeReport } from "../health";
+import { connectHealth, diagnoseHealth, disconnectHealth, HISTORY_DAYS, openHealthSettings, pullHealth, type TypeReport } from "../health";
 import { makePairCode, readPairCode } from "../sync/pair";
 import { isScriptUrl } from "../lib/sheets";
 import { sendSheets } from "../sync/sheets";
@@ -367,7 +367,8 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
             <div className="actions">
               {health?.on ? (
                 <>
-                  <button type="button" className="primary" onClick={() => { setHcMsg({ text: "…" }); void pullHealth().then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.pullNow")}</button>
+                  <button type="button" className="primary" onClick={() => { setHcMsg({ text: "…" }); void pullHealth(30).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.pullNow")}</button>
+                  <button type="button" onClick={() => { setHcMsg({ text: t("hc.historyLoading") }); void connectHealth().then(() => pullHealth(HISTORY_DAYS)).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.history")}</button>
                   <button type="button" onClick={() => { setDiag(null); void diagnoseHealth().then(setDiag); }}>{t("hc.diag")}</button>
                   <button type="button" onClick={() => void openHealthSettings()}>{t("hc.permissions")}</button>
                   <button type="button" className="danger" onClick={() => void disconnectHealth()}>{t("hc.disconnect")}</button>

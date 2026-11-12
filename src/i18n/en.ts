@@ -481,6 +481,8 @@ export const en: Record<MessageKey, string> = {
   "diary.intro": "Good things gather here: what you write in “A good thing today” and separate entries. For the therapist — export for a period below.",
   "habit.fieldOptions": "Options, comma separated",
   "habit.fieldLabel": "Question",
+  "hc.history": "Load a year of history",
+  "hc.historyLoading": "Loading history… this can take up to a minute. If Health Connect asks for access to past data, allow it.",
   "flag.chest": "chest pain/pressure",
   "flag.dizzy": "dizziness",
   "flag.breath": "breathlessness",
