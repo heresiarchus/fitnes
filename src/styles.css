@@ -309,6 +309,28 @@ svg .k-bike, .legend .k-bike { fill: var(--muted); background: var(--muted); }
 .scale-ends { display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--muted); margin-top: -4px; }
 textarea.short { min-height: 60px; }
 
+/* Compact actions */
+.pill { min-height: 38px; padding: 0 14px; border-radius: 999px; font-size: 0.92rem; font-weight: 650; background: transparent; color: var(--accent-ink); box-shadow: inset 0 0 0 2px var(--accent); flex: none; }
+.pill:active { background: var(--accent-soft); }
+button.compact, .btn.compact { min-height: 42px; padding: 0 16px; flex: none; }
+.pill-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.actions > .compact { justify-self: start; grid-column: auto !important; }
+.watch-val { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; background: var(--field); border-radius: var(--r-ctl); padding: 12px 14px; }
+.watch-val b { font-size: 1.25rem; font-weight: 800; }
+.watch-card { background: var(--accent-soft); border-radius: 16px; padding: 12px 14px; display: grid; gap: 6px; }
+.watch-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-weight: 650; }
+.day-left { margin: 0; padding: 10px 14px; border-radius: var(--r-ctl); background: var(--field); font-weight: 600; font-size: 0.95rem; }
+.day-left.done { background: var(--good-soft); color: var(--good); }
+.warn-card { background: var(--bad-soft); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 8px; }
+.warn-card b { color: var(--bad); }
+.src-list.locked { opacity: 0.55; }
+.diag { display: grid; gap: 8px; background: var(--field); border-radius: 16px; padding: 12px 14px; }
+.diag li { display: grid; grid-template-columns: minmax(90px, 36%) minmax(0, 1fr); gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); }
+.diag li:first-child { border-top: 0; }
+.diag li.bad > span:last-child { color: var(--bad); font-weight: 650; }
+.diag li.good > span:last-child { color: var(--good); font-weight: 650; }
+.diag small { display: block; color: var(--muted); font-weight: 500; overflow-wrap: anywhere; }
+
 /* Calendar */
 .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .cal-wd { text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--muted); padding-bottom: 2px; }

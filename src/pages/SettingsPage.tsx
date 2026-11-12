@@ -5,7 +5,8 @@ import { SyncBadge } from "../components/SyncBadge";
 import { Link } from "react-router-dom";
 import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useHealthState, useSheetsConfig, useSyncConfig } from "../db";
 import { parseHistory } from "../lib/history";
-import { connectHealth, disconnectHealth, openHealthSettings } from "../health";
+import { connectHealth, diagnoseHealth, disconnectHealth, openHealthSettings, pullHealth, type TypeReport } from "../health";
+import { makePairCode, readPairCode } from "../sync/pair";
 import { isScriptUrl } from "../lib/sheets";
 import { sendSheets } from "../sync/sheets";
 import sheetsScript from "../../docs/google-sheets-script.gs?raw";
@@ -17,7 +18,7 @@ import { applySamsung, emptySamsung, parseSamsungFile } from "../lib/samsung";
 import { syncNow } from "../sync/engine";
 import { checkRepo, SyncError } from "../sync/github";
 import type { DaysMap, Habit, Lang, Phase, Settings, Theme } from "../lib/types";
-import { REMINDER_KINDS, SOURCE_KEYS } from "../lib/types";
+import { fromWatch, REMINDER_KINDS, SOURCE_KEYS } from "../lib/types";
 import { APK_URL, askNotifications, isNative, newerShell, notificationsAllowed } from "../native";
 import { checkForUpdate } from "../components/PwaPrompt";
 
@@ -87,9 +88,12 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
     }
     if (samsungRef.current) samsungRef.current.value = "";
     if (!data.kinds.length) { setSamsung({ text: t("samsung.error"), kind: "err" }); return; }
-    const { changes, counts } = applySamsung(days, data, settings.sources, (k) => t(`cardio.${k}` as MessageKey));
+    // An explicit file import applies everything in the file unless the watch is connected and a metric is set to manual.
+    const all = { steps: true, exercise: true, weight: true, bp: true, sleep: true };
+    const src = settings.healthLinked ? settings.sources : all;
+    const { changes, counts } = applySamsung(days, data, src, (k) => t(`cardio.${k}` as MessageKey));
     await saveDays(changes);
-    const skipped = data.kinds.filter((k) => !settings.sources[k]).map((k) => t(`src.${k}` as MessageKey).toLowerCase());
+    const skipped = data.kinds.filter((k) => !src[k]).map((k) => t(`src.${k}` as MessageKey).toLowerCase());
     const parts = [changes.length ? t("samsung.done2", counts) : t("samsung.nothing")];
     if (skipped.length) parts.push(t("samsung.skipped", { list: skipped.join(", ") }));
     if (bad) parts.push(t("samsung.badFiles", { n: bad }));
@@ -102,6 +106,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const built = new Date(__BUILD_TIME__).toLocaleString(settings.lang === "uk" ? "uk-UA" : "en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   const health = useHealthState();
   const [hcMsg, setHcMsg] = useState<Status>({ text: "" });
+  const [diag, setDiag] = useState<TypeReport[] | null>(null);
   async function hcConnect() {
     setHcMsg({ text: "…" });
     const r = await connectHealth();
@@ -152,14 +157,28 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const addHabit = () =>
     updateSettings({ habits: [...settings.habits, { id: newId("habit"), title: "", minVersion: "", enabled: true, activeFrom: new Date().toISOString().slice(0, 10), remind: null }] });
 
+  const pair = readPairCode(token);
+  async function copyPairCode() {
+    if (!syncCfg) return;
+    const code = makePairCode(syncCfg.repo, syncCfg.token);
+    try { await navigator.clipboard.writeText(code); setSyncMsg({ text: t("sync.codeCopied"), kind: "ok" }); }
+    catch { window.prompt(t("sync.copyCode"), code); }
+  }
+
   async function connect() {
-    const r = repo.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/+$/, "");
+    if (pair) { await connectWith(pair.repo, pair.token); return; }
+    await connectWith(repo, token.trim());
+  }
+
+  async function connectWith(repoIn: string, tokenIn: string) {
+    const r = repoIn.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/+$/, "");
     if (!/^[\w.-]+\/[\w.-]+$/.test(r)) { setSyncMsg({ text: t("sync.badRepo"), kind: "err" }); return; }
     setConnecting(true);
     setSyncMsg({ text: t("sync.connecting") });
     try {
-      await checkRepo(r, token.trim());
-      await setSyncConfig({ provider: "github", repo: r, token: token.trim(), path: "fitnes-data.json" });
+      await checkRepo(r, tokenIn);
+      await setSyncConfig({ provider: "github", repo: r, token: tokenIn, path: "fitnes-data.json" });
+      setRepo("");
       setToken("");
       setSyncMsg({ text: "" });
       await syncNow();
@@ -191,6 +210,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
             <p className="status" style={{ margin: 0 }}>{t("sync.connectedTo", { repo: syncCfg.repo })}</p>
             <div className="actions">
               <button type="button" onClick={() => void syncNow()}>{t("sync.now")}</button>
+              <button type="button" onClick={copyPairCode}>{t("sync.copyCode")}</button>
               <button type="button" className="danger" onClick={disconnect}>{t("sync.disconnect")}</button>
             </div>
           </>
@@ -204,15 +224,18 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
               </ol>
             )} />
             <div className="fields one">
-              <label className="field"><span>{t("sync.repo")}</span>
-                <input type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="user/fitnes-data" value={repo} onChange={(e) => setRepo(e.target.value)} />
-              </label>
-              <label className="field"><span>{t("sync.token")}</span>
-                <input type="password" autoComplete="off" placeholder="github_pat_…" value={token} onChange={(e) => setToken(e.target.value)} />
-              </label>
+              <div className="field">
+                <Head as="label" title={t("sync.code")} help={t("sync.codeHelp")} />
+                <input type="password" autoComplete="off" aria-label={t("sync.code")} placeholder={t("sync.codePh")} value={token} onChange={(e) => setToken(e.target.value)} />
+              </div>
+              {pair ? <span className="status ok">{t("sync.repoFromCode", { repo: pair.repo })}</span> : (
+                <label className="field"><span>{t("sync.repo")}</span>
+                  <input type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="heresiarchus/fitnes-data" value={repo} onChange={(e) => setRepo(e.target.value)} />
+                </label>
+              )}
             </div>
             <div className="actions">
-              <button type="button" className="primary" onClick={connect} disabled={connecting || !repo.trim() || !token.trim()}>{t("sync.connect")}</button>
+              <button type="button" className="primary" onClick={connect} disabled={connecting || !token.trim() || (!pair && !repo.trim())}>{t("sync.connect")}</button>
             </div>
           </>
         )}
@@ -277,6 +300,19 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
                   </label>
                 </div>
                 {h.remind && <button type="button" className="link" onClick={() => setHabit(h.id, { remind: null })}>{t("habit.noRemind")}</button>}
+                {(h.fields ?? []).map((fd, i) => (
+                  <div className="fields two" key={fd.key}>
+                    <label className="field"><span>{t("habit.fieldLabel")}</span>
+                      <input type="text" maxLength={40} defaultValue={fd.label} onBlur={(e) => e.target.value.trim() && e.target.value !== fd.label && setHabit(h.id, { fields: h.fields!.map((x, j) => (j === i ? { ...x, label: e.target.value.trim() } : x)) })} />
+                    </label>
+                    <label className="field"><span>{t("habit.fieldOptions")}</span>
+                      <input type="text" maxLength={200} defaultValue={fd.options.join(", ")} onBlur={(e) => {
+                        const opts = e.target.value.split(",").map((o) => o.trim()).filter(Boolean);
+                        if (opts.length && opts.join(", ") !== fd.options.join(", ")) setHabit(h.id, { fields: h.fields!.map((x, j) => (j === i ? { ...x, options: opts } : x)) });
+                      }} />
+                    </label>
+                  </div>
+                ))}
               </div>
             </details>
           ))}
@@ -317,23 +353,9 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         </div>
       </section>
 
-      <section className="block">
-        <Head title={t("src.title")} help={t("src.intro")} />
-        <div className="src-list">
-          {SOURCE_KEYS.map((k) => (
-            <div className="src-row" key={k}>
-              <span>{t(`src.${k}` as MessageKey)}</span>
-              <div className="seg full" role="radiogroup" aria-label={t(`src.${k}` as MessageKey)}>
-                <button type="button" role="radio" aria-checked={settings.sources[k]} className={settings.sources[k] ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: true } })}>{t("src.samsung")}</button>
-                <button type="button" role="radio" aria-checked={!settings.sources[k]} className={!settings.sources[k] ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: false } })}>{t("src.manual")}</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       <section className="block">
-        <Head title={t("hc.title")} help={t("hc.help")} />
+        <Head title={t("hc.title")} help={<>{t("hc.help")} {t("hc.what")}</>} />
         {isNative ? (
           <>
             <span className={"status" + (health?.lastError ? " err" : health?.on ? " ok" : "")} role="status">
@@ -345,12 +367,29 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
             <div className="actions">
               {health?.on ? (
                 <>
+                  <button type="button" className="primary" onClick={() => { setHcMsg({ text: "…" }); void pullHealth().then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.pullNow")}</button>
+                  <button type="button" onClick={() => { setDiag(null); void diagnoseHealth().then(setDiag); }}>{t("hc.diag")}</button>
                   <button type="button" onClick={() => void openHealthSettings()}>{t("hc.permissions")}</button>
                   <button type="button" className="danger" onClick={() => void disconnectHealth()}>{t("hc.disconnect")}</button>
                 </>
               ) : <button type="button" className="primary" onClick={hcConnect}>{t("hc.connect")}</button>}
             </div>
             {hcMsg.text && <span className={"status " + (hcMsg.kind ?? "")} role="status">{hcMsg.text}</span>}
+            {diag && (
+              <div className="diag">
+                <b>{t("hc.diagTitle")}</b>
+                <ul className="plain">
+                  {diag.map((r) => (
+                    <li key={r.type} className={!r.granted || r.error || !r.count ? "bad" : "good"}>
+                      <span>{t(`hc.diag.type.${r.type}` as MessageKey)}</span>
+                      <span>{!r.granted ? t("hc.diag.noPerm") : r.error ? r.error : !r.count ? t("hc.diag.none") : t("hc.diag.count", { n: r.count, d: (r.last ?? "").slice(0, 10) })}
+                        {r.sources.length > 0 && <small>{t("hc.diag.from", { s: r.sources.join(", ") })}</small>}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="status" style={{ margin: 0 }}>{t("hc.diag.hint")}</p>
+              </div>
+            )}
           </>
         ) : <p className="help-text">{t("hc.webOnly")}</p>}
         <details>
@@ -369,6 +408,22 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         {samsung.text && <p className={"status " + (samsung.kind ?? "")} role="status">{samsung.text}</p>}
           </div>
         </details>
+      </section>
+
+      <section className="block">
+        <Head title={t("src.title")} help={t("src.intro")} />
+        {!settings.healthLinked && <p className="help-text">{isNative ? t("hc.linkFirst") : t("hc.linkFirstWeb")}</p>}
+        <div className={"src-list" + (settings.healthLinked ? "" : " locked")}>
+          {SOURCE_KEYS.map((k) => (
+            <div className="src-row" key={k}>
+              <span>{t(`src.${k}` as MessageKey)}</span>
+              <div className="seg full" role="radiogroup" aria-label={t(`src.${k}` as MessageKey)}>
+                <button type="button" role="radio" disabled={!settings.healthLinked} aria-checked={fromWatch(settings, k)} className={fromWatch(settings, k) ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: true } })}>{t("src.samsung")}</button>
+                <button type="button" role="radio" disabled={!settings.healthLinked} aria-checked={!fromWatch(settings, k)} className={!fromWatch(settings, k) ? "on" : ""} onClick={() => updateSettings({ sources: { ...settings.sources, [k]: false } })}>{t("src.manual")}</button>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="block">

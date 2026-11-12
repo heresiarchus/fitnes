@@ -50,7 +50,10 @@ export function DiaryPage() {
 
   return (
     <>
-      <header className="page-head"><h1>{t("diary.title")}</h1></header>
+      <header className="page-head">
+        <h1>{t("diary.title")}</h1>
+        <p className="sub">{t("diary.intro")}</p>
+      </header>
 
       <section className="block">
         <Head title={t("diary.save")} help={t("diary.help")} />

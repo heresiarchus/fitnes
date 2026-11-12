@@ -4,7 +4,7 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import type { TFn } from "./i18n";
 import { iso } from "./lib/date";
 import { fmt, fmtInt } from "./lib/format";
-import { type PlannedReminder, planReminders } from "./lib/reminders";
+import { missingToday, type PlannedReminder, planReminders } from "./lib/reminders";
 import type { DaysMap, Lang, Settings } from "./lib/types";
 
 /** True inside the Android app; false in a browser or installed web app. */
@@ -74,6 +74,17 @@ export async function syncReminders(settings: Settings, days: DaysMap, t: TFn) {
           };
         }
         const kind = p.kind as Exclude<PlannedReminder["kind"], "habit">;
+        if (kind === "evening") {
+          // Today's text names exactly what's missing; later days get a general check.
+          const miss = iso(p.at) === iso(new Date()) ? missingToday(days[iso(p.at)]) : [];
+          return {
+            id: p.id,
+            title: t("remind.missing.title"),
+            body: miss.length ? t("remind.missing.body", { list: miss.map((m) => t(m === "weight" ? "day.left.weight" : "day.left.feel")).join(", ") }) : t("remind.missing.generic"),
+            schedule: { at: p.at, allowWhileIdle: true },
+            extra: { route: "/log" },
+          };
+        }
         return {
           id: p.id,
           title: t(`remind.${kind}.title`),

@@ -1,6 +1,6 @@
 import { num } from "./format";
 import { movementDetail } from "./habits";
-import type { BpSlot, DayEntry, DayType, Flag, Habit, HabitStatus, PainArea, StrengthItem, WalkIntensity, WeightCond } from "./types";
+import type { BpSlot, DayEntry, DayType, Flag, Habit, HabitStatus, PainArea, SourceKey, StrengthItem, WalkIntensity, WeightCond } from "./types";
 import { BP_SLOTS, EXERCISES, FLAGS, PAIN_AREAS } from "./types";
 
 export interface SetRow { sets: string; reps: string; kg: string }
@@ -109,6 +109,8 @@ function setItem(row: SetRow): Omit<StrengthItem, "id" | "name"> | null {
 /** Converts form state to an entry. Returns null when nothing meaningful was entered. */
 export interface FromOptions {
   habits?: Habit[];
+  /** Metrics that come from the watch: their values are taken from `keep`, not from the form. */
+  watch?: SourceKey[];
   /** Fields the form does not edit; carried over from the saved entry. */
   keep?: DayEntry;
   labels?: { walk: string; strength: string; min: string; auto: string };
@@ -166,6 +168,21 @@ export function fromFormState(date: string, f: DayFormState, now = new Date(), o
   const note = f.note.trim();
   if (note) out.note = note;
   if (opt.keep?.bpEpisodes?.length) out.bpEpisodes = opt.keep.bpEpisodes;
+  // Values the form never edits (sleep, resting pulse) and metrics taken from the watch
+  // always come from the stored entry, so saving the form never erases pulled data.
+  const k = opt.keep;
+  const copy = (...keys: (keyof DayEntry)[]) => {
+    for (const key of keys) {
+      delete (out as unknown as Record<string, unknown>)[key];
+      if (k?.[key] != null) (out as unknown as Record<string, unknown>)[key] = k[key];
+    }
+  };
+  copy("sleepMin", "sleepStart", "sleepEnd", "restingHr");
+  const watch = new Set(opt.watch ?? []);
+  if (watch.has("steps")) copy("steps");
+  if (watch.has("exercise")) copy("walkMin", "walkIntensity", "cardioMin", "cardioWhat");
+  if (watch.has("bp")) copy("bp");
+  if (watch.has("weight") && k?.weight != null) { copy("weight", "weightCond", "weightTime", "weightOrigin"); delete out.noWeight; }
   if (f.dayType) out.dayType = f.dayType;
   if (f.partnerHere) out.partnerHere = f.partnerHere === "yes";
   if (f.nightEpisode) {
@@ -204,10 +221,13 @@ export function fromFormState(date: string, f: DayFormState, now = new Date(), o
 
 export type MissingField = "weight" | "feeling";
 
-/** Required answers that are still missing; each takes one tap to give. */
-export function missingRequired(f: DayFormState): MissingField[] {
+/**
+ * Required answers that are still missing; each takes one tap to give.
+ * A weight that arrived from the watch counts as answered.
+ */
+export function missingRequired(f: DayFormState, weightFromWatch = false): MissingField[] {
   const out: MissingField[] = [];
-  if (f.weightChoice === "pending") out.push("weight");
+  if (f.weightChoice === "pending" && !weightFromWatch) out.push("weight");
   // Answered by the 1–5 rating; older entries answered it with "all good" or a warning sign.
   if (!f.feel && !f.ok && !f.flags.length) out.push("feeling");
   return out;
