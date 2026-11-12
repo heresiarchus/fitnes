@@ -559,3 +559,33 @@ section.block.menu { padding: 6px; gap: 0; }
 .pal-prev em { display: flex; align-items: center; justify-content: center; gap: 5px; background: #fff; }
 .pal-prev b { width: 16px !important; height: 16px !important; border-radius: 50% !important; border: 0 !important; }
 .measure-drum > * { position: relative; }
+
+.scale-box { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.scale-live { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.dev-list li { display: grid; padding: 8px 0; border-top: 1px solid var(--line); }
+.dev-list li:first-child { border-top: 0; }
+.dev-list li.good b { color: var(--good); }
+.dev-list small { color: var(--muted); }
+/* Style cards: the preview fills the card, independent of the name's length. */
+.pal { display: flex !important; flex-direction: column; align-items: stretch !important; justify-content: flex-start; text-align: left; }
+.pal-prev { align-self: stretch; width: 100%; flex: none; }
+.pal span { min-height: 2.4em; display: flex; align-items: center; }
+
+/* Today and the selected day: outline and the main text colour, never text on a tinted fill. */
+.cal-day.today .cd { background: transparent !important; color: var(--ink) !important; font-weight: 800; box-shadow: inset 0 0 0 2px var(--accent); border-radius: 999px; padding: 0 7px; }
+.cal-day.sel { background: var(--accent-soft) !important; box-shadow: inset 0 0 0 2.5px var(--accent); }
+.cal-day.sel .cd, .cal-day.sel .cv { color: var(--ink); }
+.cal-day.sel .cv.high { color: var(--bad); }
+
+/* Goal rings */
+.goal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.goal { display: grid; justify-items: center; text-align: center; gap: 2px; background: var(--field); border-radius: 16px; padding: 10px 6px; }
+.goal b { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.goal small { color: var(--muted); font-size: 0.78rem; font-weight: 600; }
+.ring { width: 64px; height: 64px; }
+.ring circle { fill: none; stroke-width: 7; }
+.ring-bg { stroke: var(--field-2); }
+.ring-fg { stroke: var(--accent); stroke-linecap: round; }
+.ring.done .ring-fg { stroke: var(--good); }
+.ring text { fill: var(--ink); font-size: 13px; font-weight: 800; font-family: var(--font); }
+.goal-ctl { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }

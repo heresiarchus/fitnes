@@ -9,6 +9,8 @@ import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, s
 import { parseHistory } from "../lib/history";
 import { connectHealth, diagnoseHealth, disconnectHealth, HISTORY_DAYS, openHealthSettings, pullHealth, todaySteps, type TypeReport } from "../health";
 import { makePairCode, readPairCode } from "../sync/pair";
+import { GOAL_DEFS } from "../lib/goals";
+import { type NearbyDevice, scanNearby } from "../scale";
 import { isScriptUrl } from "../lib/sheets";
 import { sendSheets } from "../sync/sheets";
 import sheetsScript from "../../docs/google-sheets-script.gs?raw";
@@ -42,14 +44,13 @@ type Status = { text: string; kind?: "ok" | "err" };
 
 /** Explanations that belong to a whole settings category, shown behind "?" next to its title. */
 const CAT_HELP: Record<string, MessageKey> = {
-  reminders: "remind.how", sources: "src.intro", habits: "habit.manageHelp", data: "settings.dataHint",
+  goals: "goals.help", reminders: "remind.how", sources: "src.intro", habits: "habit.manageHelp", data: "settings.dataHint",
 };
 
 export function SettingsPage({ days, settings }: { days: DaysMap; settings: Settings }) {
   const { t } = useI18n();
   const { cat } = useParams();
   const [status, setStatus] = useState<Status>({ text: "" });
-  const [goal, setGoal] = useState(settings.stepGoal == null ? "" : String(settings.stepGoal));
   const fileRef = useRef<HTMLInputElement>(null);
   const samsungRef = useRef<HTMLInputElement>(null);
   const [samsung, setSamsung] = useState<Status>({ text: "" });
@@ -63,12 +64,6 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const setReminder = (k: ReminderKind, patch: Partial<{ on: boolean; time: string; until: string; every: number }>) =>
     updateSettings({ reminders: { ...settings.reminders, [k]: { ...settings.reminders[k], ...patch } } });
   const count = Object.keys(days).length;
-
-  function saveGoal(v: string) {
-    setGoal(v);
-    const n = num(v);
-    updateSettings({ stepGoal: n != null && n > 0 ? Math.round(n) : null });
-  }
 
   async function exportJson() {
     const all = await liveDays();
@@ -129,6 +124,9 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const health = useHealthState();
   const [hcMsg, setHcMsg] = useState<Status>({ text: "" });
   const [diag, setDiag] = useState<TypeReport[] | null>(null);
+  const [nearby, setNearby] = useState<NearbyDevice[] | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const fmtKg = (kg: number) => (Math.round(kg * 10) / 10).toFixed(1).replace(".", settings.lang === "uk" ? "," : ".");
   const [steps, setSteps] = useState<{ samsung: number | null; merged: number } | null>(null);
   async function hcConnect() {
     setHcMsg({ text: "…" });
@@ -351,6 +349,24 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         )}
         {sheetMsg.text && <span className={"status " + (sheetMsg.kind ?? "")} role="status">{sheetMsg.text}</span>}
       </section>
+      <section className="block">
+        <Head title={t("scale.title")} help={t("scale.help")} />
+        {isNative ? (
+          <>
+            <div className="actions"><button type="button" onClick={() => { setNearby(null); setScanning(true); void scanNearby().then((d) => { setNearby(d); setScanning(false); }).catch(() => setScanning(false)); }} disabled={scanning}>{scanning ? t("scale.scanning") : t("scale.check")}</button></div>
+            {nearby && (nearby.length ? (
+              <ul className="plain dev-list">
+                {nearby.slice(0, 12).map((d) => (
+                  <li key={d.id} className={d.reading ? "good" : ""}>
+                    <b>{d.name || t("scale.noName")}</b>
+                    <small>{d.reading ? t("scale.found", { kg: fmtKg(d.reading.kg), v: d.reading.variant }) : d.companies.join(" ") || "—"}{d.rssi != null ? ` · ${d.rssi} dBm` : ""}</small>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="status">{t("scale.none")}</p>)}
+          </>
+        ) : <p className="help-text">{t("scale.webOnly")}</p>}
+      </section>
         </>
       )}
       {cat === "sources" && (
@@ -482,6 +498,29 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
         </>
       )}
+      {cat === "goals" && (
+        <section className="block">
+          {settings.goals.map((g, i) => {
+            const def = GOAL_DEFS.find((d) => d.metric === g.metric)!;
+            const setGoal = (patch: Partial<typeof g>) => updateSettings({
+              goals: settings.goals.map((x, j) => (j === i ? { ...x, ...patch } : x)),
+              ...(g.metric === "steps" && patch.target != null ? { stepGoal: patch.target } : {}),
+            });
+            return (
+              <div className="src-row" key={g.metric}>
+                <span>{t(`goal.${g.metric}` as MessageKey)}{def.unit ? `, ${def.unit}` : ""}</span>
+                <div className="remind-ctl goal-ctl">
+                  <div className="seg full" role="radiogroup" aria-label={t(`goal.${g.metric}` as MessageKey)}>
+                    <button type="button" role="radio" aria-checked={g.on} className={g.on ? "on" : ""} onClick={() => setGoal({ on: true })}>{t("remind.on")}</button>
+                    <button type="button" role="radio" aria-checked={!g.on} className={!g.on ? "on" : ""} onClick={() => setGoal({ on: false })}>{t("remind.off")}</button>
+                  </div>
+                  <Stepper value={String(g.target)} onChange={(v) => { const n = num(v); if (n != null && n > 0) setGoal({ target: n }); }} step={def.step} min={def.step} max={def.max} decimals={def.step < 1 ? 1 : 0} label={t(`goal.${g.metric}` as MessageKey)} />
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
       {cat === "program" && (
         <>
       <section className="block">
@@ -493,9 +532,6 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </label>
           <label className="field"><span>{t("settings.startDate")}</span>
             <input type="date" value={settings.startDate} onChange={(e) => e.target.value && updateSettings({ startDate: e.target.value })} />
-          </label>
-          <label className="field"><span>{t("settings.stepGoal")}</span>
-            <input type="number" min={0} step={500} inputMode="numeric" value={goal} onChange={(e) => saveGoal(e.target.value)} />
           </label>
         </div>
         <div className="field"><Head as="label" title={t("settings.bpMark")} />

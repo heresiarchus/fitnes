@@ -54,6 +54,9 @@ export interface DayEntry {
   sleepMin?: number;
   sleepStart?: string;
   sleepEnd?: string;
+  /** Active calories and distance for the day, from the watch. */
+  activeKcal?: number;
+  distanceKm?: number;
   /** Daytime sleep, minutes (kept apart from the night). */
   napMin?: number;
   restingHr?: number;
@@ -90,6 +93,8 @@ export interface Settings {
   sources: Record<SourceKey, boolean>;
   /** Blood pressure at or above this is highlighted in the calendar. */
   bpMark: { sys: number; dia: number };
+  /** Daily goals, like the activity targets in Samsung Health. */
+  goals: { metric: GoalMetric; target: number; on: boolean }[];
   /** Habit catalogue: habits are data, new ones are added in settings. */
   habits: Habit[];
   /** Hide weight on the home screen. */
@@ -205,3 +210,5 @@ export const DIARY_TAGS = ["move", "food", "work", "study", "people", "other"] a
 
 /** A field comes from the watch only when Samsung Health is actually connected and the user chose it. */
 export const fromWatch = (s: Pick<Settings, "healthLinked" | "sources">, k: SourceKey) => s.healthLinked && s.sources[k];
+
+export type GoalMetric = "steps" | "activeKcal" | "activeMin" | "distanceKm" | "sleepH";

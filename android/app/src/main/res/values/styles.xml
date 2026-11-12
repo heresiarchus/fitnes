@@ -13,6 +13,8 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- The web app has its own dark theme; Android must not recolour it. -->
+        <item name="android:forceDarkAllowed">false</item>
     </style>
 
 

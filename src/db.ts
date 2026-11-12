@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo } from "react";
+import { DEFAULT_GOALS } from "./lib/goals";
 import { DEFAULT_HABITS, migrateHabits } from "./lib/habits";
 import type { DayEntry, DaysMap, Item, Settings, SheetsConfig, SyncConfig } from "./lib/types";
 
@@ -37,6 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
     bp: { on: false, time: "20:00" }, review: { on: true, time: "22:20" },
   },
   habits: DEFAULT_HABITS,
+  goals: DEFAULT_GOALS,
   hideWeight: false,
   updatedAt: EPOCH,
 };
@@ -59,6 +61,8 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
       review: { ...DEFAULT_SETTINGS.reminders.review, ...(r.reminders?.review ?? {}) },
     },
     remindersV: 3,
+    // Goals: keep the user's targets, add metrics introduced later; the old steps goal seeds the steps target.
+    goals: DEFAULT_GOALS.map((g) => r.goals?.find((x) => x.metric === g.metric) ?? (g.metric === "steps" && r.stepGoal ? { ...g, target: r.stepGoal } : g)),
     habits: migrateHabits(Array.isArray(r.habits) && r.habits.length ? r.habits : DEFAULT_HABITS),
   };
 }

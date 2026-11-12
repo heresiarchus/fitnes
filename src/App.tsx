@@ -44,10 +44,10 @@ function Shell() {
   // Keep the widget and the reminder schedule in step with the data.
   useEffect(() => {
     if (!days) return;
-    void updateWidget(days, t, lang);
+    void updateWidget(days, t, lang, settings);
     void syncReminders(settings, days, t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, settings.reminders, settings.habits, lang, notifOk]);
+  }, [days, settings.reminders, settings.habits, settings.goals, lang, notifOk]);
 
   return (
     <>

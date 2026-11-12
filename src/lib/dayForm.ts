@@ -178,7 +178,7 @@ export function fromFormState(date: string, f: DayFormState, now = new Date(), o
       if (k?.[key] != null) (out as unknown as Record<string, unknown>)[key] = k[key];
     }
   };
-  copy("sleepMin", "sleepStart", "sleepEnd", "restingHr");
+  copy("sleepMin", "sleepStart", "sleepEnd", "restingHr", "napMin", "activeKcal", "distanceKm");
   const watch = new Set(opt.watch ?? []);
   if (watch.has("steps")) copy("steps");
   if (watch.has("exercise")) copy("walkMin", "walkIntensity", "cardioMin", "cardioWhat");
