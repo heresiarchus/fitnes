@@ -98,7 +98,7 @@ export function CalendarPage({ days, settings }: { days: DaysMap; settings: Sett
                 </button>
               ))}
             </div>
-            <Head as="label" title={<span className="status">{t(`cal.mode.${mode}` as MessageKey)}</span>} help={t(`cal.legend.${mode}` as MessageKey, mark)} />
+            <Head as="label" title={<span className="status">{t(`cal.mode.${mode}` as MessageKey)}</span>} sub={t(`cal.legend.${mode}` as MessageKey, mark)} />
             {mode === "bp" && (
               <p className="status" style={{ margin: 0 }}>
                 <b>{t("cal.bpMonth")}:</b> {t("cal.morning")} <span className={"num" + (bpIsHigh(bpMonth.morning, mark) ? " high" : "")}>{bpText(bpMonth.morning)}</span>
@@ -146,7 +146,7 @@ function BpQuickAdd({ date, today, days }: { date: string; today: string; days: 
 
   return (
     <section className="block">
-      <Head title={t("cal.bpAddFor", { d: ddmm(date) })} help={t("form.bpHint")} />
+      <Head title={t("cal.bpAddFor", { d: ddmm(date) })} />
       <div>
         <div className="seg full" role="radiogroup">
           {(["am", "pm", "ep"] as const).map((p) => (

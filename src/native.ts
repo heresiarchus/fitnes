@@ -57,6 +57,11 @@ export async function askNotifications(): Promise<boolean> {
 export async function syncReminders(settings: Settings, days: DaysMap, t: TFn) {
   if (!isNative) return;
   try {
+    // Clear delivered reminders that are no longer true (the data has been logged).
+    const delivered = await LocalNotifications.getDeliveredNotifications();
+    const todayDone = missingToday(days[iso(new Date())]).length === 0;
+    const stale = delivered.notifications.filter((n) => (n.id >= 5000 && n.id < 6000 && todayDone) || n.id >= 1000 && n.id < 5000);
+    if (stale.length) await LocalNotifications.removeDeliveredNotifications({ notifications: stale });
     const pending = await LocalNotifications.getPending();
     if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
     if (!(await notificationsAllowed())) return;
@@ -82,6 +87,9 @@ export async function syncReminders(settings: Settings, days: DaysMap, t: TFn) {
             title: t("remind.missing.title"),
             body: miss.length ? t("remind.missing.body", { list: miss.map((m) => t(m === "weight" ? "day.left.weight" : "day.left.feel")).join(", ") }) : t("remind.missing.generic"),
             schedule: { at: p.at, allowWhileIdle: true },
+            // Stays in the shade until the day is complete; cleared by the app, not by a swipe.
+            ongoing: true,
+            autoCancel: false,
             extra: { route: "/log" },
           };
         }

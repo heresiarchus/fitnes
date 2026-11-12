@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   stepGoal: null,
   lang: "uk",
   theme: "auto",
+  palette: "mint",
   healthLinked: false,
   remindersV: 2,
   sources: { steps: true, exercise: true, weight: false, bp: false, sleep: true },

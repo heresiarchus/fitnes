@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { HashRouter, NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { PwaPrompt } from "./components/PwaPrompt";
+import { DueScreen } from "./components/DueScreen";
 import { useDays, useSettings } from "./db";
 import { I18nProvider, type MessageKey, useI18n } from "./i18n";
 import { DayLog } from "./pages/DayLog";
@@ -74,6 +75,7 @@ function Shell() {
         ))}
       </nav>
       <PwaPrompt />
+      {days && <DueScreen days={days} settings={settings} />}
     </>
   );
 }
@@ -84,9 +86,13 @@ export function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.lang = settings.lang;
-    if (settings.theme === "auto") delete root.dataset.theme;
-    else root.dataset.theme = settings.theme;
-  }, [settings.lang, settings.theme]);
+    root.dataset.palette = settings.palette;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => { root.dataset.theme = settings.theme === "auto" ? (mq.matches ? "dark" : "light") : settings.theme; };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [settings.lang, settings.theme, settings.palette]);
 
   return (
     <I18nProvider lang={settings.lang}>

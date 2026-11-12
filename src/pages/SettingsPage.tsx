@@ -5,7 +5,7 @@ import { SyncBadge } from "../components/SyncBadge";
 import { Link } from "react-router-dom";
 import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useHealthState, useSheetsConfig, useSyncConfig } from "../db";
 import { parseHistory } from "../lib/history";
-import { connectHealth, diagnoseHealth, disconnectHealth, HISTORY_DAYS, openHealthSettings, pullHealth, type TypeReport } from "../health";
+import { connectHealth, diagnoseHealth, disconnectHealth, HISTORY_DAYS, openHealthSettings, pullHealth, todaySteps, type TypeReport } from "../health";
 import { makePairCode, readPairCode } from "../sync/pair";
 import { isScriptUrl } from "../lib/sheets";
 import { sendSheets } from "../sync/sheets";
@@ -18,7 +18,14 @@ import { applySamsung, emptySamsung, parseSamsungFile } from "../lib/samsung";
 import { syncNow } from "../sync/engine";
 import { checkRepo, SyncError } from "../sync/github";
 import type { DaysMap, Habit, Lang, Phase, Settings, Theme } from "../lib/types";
-import { fromWatch, REMINDER_KINDS, SOURCE_KEYS } from "../lib/types";
+import { fromWatch, PALETTES, type Palette, REMINDER_KINDS, SOURCE_KEYS } from "../lib/types";
+
+const PAL_SWATCH: Record<Palette, string[]> = {
+  mint: ["#e9edee", "#9aa6a3", "#0f766e", "#5eead4"],
+  steel: ["#e8ebef", "#8a94a3", "#1d4ed8", "#93b4ff"],
+  sand: ["#efebe5", "#a5978a", "#b4532a", "#f0a27c"],
+  graphite: ["#ffffff", "#9e9e9e", "#111111", "#000000"],
+};
 import { APK_URL, askNotifications, isNative, newerShell, notificationsAllowed } from "../native";
 import { checkForUpdate } from "../components/PwaPrompt";
 
@@ -107,6 +114,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const health = useHealthState();
   const [hcMsg, setHcMsg] = useState<Status>({ text: "" });
   const [diag, setDiag] = useState<TypeReport[] | null>(null);
+  const [steps, setSteps] = useState<{ samsung: number | null; merged: number } | null>(null);
   async function hcConnect() {
     setHcMsg({ text: "…" });
     const r = await connectHealth();
@@ -203,7 +211,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </header>
 
       <section className="block">
-        <Head title={t("sync.title")} help={t("sync.intro")} />
+        <Head title={t("sync.title")} />
         <SyncBadge detailed />
         {syncCfg ? (
           <>
@@ -225,7 +233,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
             )} />
             <div className="fields one">
               <div className="field">
-                <Head as="label" title={t("sync.code")} help={t("sync.codeHelp")} />
+                <Head as="label" title={t("sync.code")} sub={t("sync.codeSub")} />
                 <input type="password" autoComplete="off" aria-label={t("sync.code")} placeholder={t("sync.codePh")} value={token} onChange={(e) => setToken(e.target.value)} />
               </div>
               {pair ? <span className="status ok">{t("sync.repoFromCode", { repo: pair.repo })}</span> : (
@@ -243,7 +251,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <Head title={t("sheets.title")} help={t("sheets.help")} />
+        <Head title={t("sheets.title")} sub={t("sheets.sub")} />
         <span className={"status" + (sheets?.lastError ? " err" : sheets?.lastSentAt ? " ok" : "")} role="status">
           {!sheets ? t("sheets.state.off") : sheets.lastError ? t("sheets.state.error", { e: sheets.lastError }) : sheetTime ? t("sheets.state.sent", { t: sheetTime }) : t("sheets.state.never")}
         </span>
@@ -272,7 +280,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <Head title={t("habit.manage")} help={t("habit.manageHelp")} />
+        <Head title={t("habit.manage")} />
         <div className="ex-list">
           {settings.habits.map((h) => (
             <details className="ex-card" key={h.id}>
@@ -321,7 +329,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <Head title={t("remind.title")} help={<>{t("remind.help")} {isNative ? t("remind.widgetHint") : ""}</>} />
+        <Head title={t("remind.title")} sub={isNative ? t("remind.widgetHint") : undefined} />
         {!isNative && (
           <>
             <p className="help-text">{t("remind.webOnly")}</p>
@@ -355,21 +363,21 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
 
 
       <section className="block">
-        <Head title={t("hc.title")} help={<>{t("hc.help")} {t("hc.what")}</>} />
+        <Head title={t("hc.title")} sub={t("hc.sub")} />
         {isNative ? (
           <>
             <span className={"status" + (health?.lastError ? " err" : health?.on ? " ok" : "")} role="status">
               {!health?.on ? t("hc.state.off") : health.lastError ? t("hc.state.error", { e: health.lastError }) : hcTime ? t("hc.state.on", { t: hcTime, n: health.lastCount ?? 0 }) : t("hc.state.never")}
             </span>
             <Head as="label" title={null} helpLabel={t("hc.how")} help={(
-              <ol className="steps-list"><li>{t("hc.step1")}</li><li>{t("hc.step2")}</li><li>{t("hc.step3")}</li></ol>
+              <><p style={{ margin: "0 0 8px" }}>{t("hc.what")}</p><ol className="steps-list"><li>{t("hc.step1")}</li><li>{t("hc.step2")}</li><li>{t("hc.step3")}</li></ol></>
             )} />
             <div className="actions">
               {health?.on ? (
                 <>
                   <button type="button" className="primary" onClick={() => { setHcMsg({ text: "…" }); void pullHealth(30).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.pullNow")}</button>
                   <button type="button" onClick={() => { setHcMsg({ text: t("hc.historyLoading") }); void connectHealth().then(() => pullHealth(HISTORY_DAYS)).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.history")}</button>
-                  <button type="button" onClick={() => { setDiag(null); void diagnoseHealth().then(setDiag); }}>{t("hc.diag")}</button>
+                  <button type="button" onClick={() => { setDiag(null); void diagnoseHealth().then(setDiag); void todaySteps().then(setSteps).catch(() => setSteps(null)); }}>{t("hc.diag")}</button>
                   <button type="button" onClick={() => void openHealthSettings()}>{t("hc.permissions")}</button>
                   <button type="button" className="danger" onClick={() => void disconnectHealth()}>{t("hc.disconnect")}</button>
                 </>
@@ -388,6 +396,8 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
                     </li>
                   ))}
                 </ul>
+                {steps && <p style={{ margin: 0, fontWeight: 650 }}>{t("hc.todaySteps", { sh: steps.samsung ?? "—", all: steps.merged })}</p>}
+                {steps && steps.samsung != null && steps.merged < steps.samsung && <p className="help-text">{t("hc.priority")}</p>}
                 <p className="status" style={{ margin: 0 }}>{t("hc.diag.hint")}</p>
               </div>
             )}
@@ -412,7 +422,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <Head title={t("src.title")} help={t("src.intro")} />
+        <Head title={t("src.title")} />
         {!settings.healthLinked && <p className="help-text">{isNative ? t("hc.linkFirst") : t("hc.linkFirstWeb")}</p>}
         <div className={"src-list" + (settings.healthLinked ? "" : " locked")}>
           {SOURCE_KEYS.map((k) => (
@@ -428,6 +438,15 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
+        <span className="sub-h">{t("pal.title")}</span>
+        <div className="pal-grid">
+          {PALETTES.map((p) => (
+            <button key={p} type="button" className={"pal" + (settings.palette === p ? " on" : "")} aria-pressed={settings.palette === p} onClick={() => updateSettings({ palette: p })}>
+              <i>{PAL_SWATCH[p].map((c) => <b key={c} style={{ background: c }} />)}</i>
+              <span>{t(`pal.${p}` as MessageKey)}</span>
+            </button>
+          ))}
+        </div>
         <div className="fields two">
           <label className="field"><span>{t("settings.lang")}</span>
             <select value={settings.lang} onChange={(e) => updateSettings({ lang: e.target.value as Lang })}>
@@ -450,7 +469,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <Head title={t("settings.program")} help={<>{t("settings.startHint")} {t("settings.stepGoalHint")}</>} />
+        <Head title={t("settings.program")} />
         <div className="fields">
           <label className="field"><span>{t("phase.label")}</span>
             <select value={settings.phase} onChange={(e) => updateSettings({ phase: e.target.value as Phase })}>
@@ -464,7 +483,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
             <input type="number" min={0} step={500} inputMode="numeric" value={goal} onChange={(e) => saveGoal(e.target.value)} />
           </label>
         </div>
-        <div className="field"><Head as="label" title={t("settings.bpMark")} help={t("settings.bpMarkHint")} />
+        <div className="field"><Head as="label" title={t("settings.bpMark")} />
           <div className="fields two">
             <Stepper value={String(settings.bpMark.sys)} onChange={(v) => num(v) && updateSettings({ bpMark: { ...settings.bpMark, sys: num(v)! } })} step={5} min={90} max={200} label={t("form.bpSys")} />
             <Stepper value={String(settings.bpMark.dia)} onChange={(v) => num(v) && updateSettings({ bpMark: { ...settings.bpMark, dia: num(v)! } })} step={5} min={50} max={130} label={t("form.bpDia")} />
@@ -473,7 +492,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       </section>
 
       <section className="block">
-        <Head title={t("settings.data")} help={<>{t("settings.dataHint")} {t("data.format")}</>} right={<span className="status num">{t("settings.count", { n: count })}</span>} />
+        <Head title={t("settings.data")} sub={t("settings.dataHint")} right={<span className="status num">{t("settings.count", { n: count })}</span>} />
         <div className="actions">
           <button type="button" onClick={exportJson}>{t("settings.backup")}</button>
           <button type="button" onClick={() => fileRef.current?.click()}>{t("settings.import")}</button>
@@ -485,7 +504,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         {status.text && <p className={"status " + (status.kind ?? "")} role="status">{status.text}</p>}
       </section>
       <section className="block">
-        <Head title={t("ver.title")} help={t("ver.help")} right={<span className="status num">{t("ver.built", { t: built })}</span>} />
+        <Head title={t("ver.title")} right={<span className="status num">{t("ver.built", { t: built })}</span>} />
         <div className="actions">
           <button type="button" onClick={() => { void checkForUpdate().then(() => setVerMsg(t("ver.checked"))); }}>{t("ver.check")}</button>
         </div>

@@ -57,7 +57,7 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
         />
         <div className="phase">
           <div className="field">
-            <Head as="label" title={t("phase.label")} help={t(`phase.${settings.phase}.note` as MessageKey)} />
+            <Head as="label" title={t("phase.label")} sub={t(`phase.${settings.phase}.note` as MessageKey)} />
             <select aria-label={t("phase.label")} value={settings.phase} onChange={(e) => updateSettings({ phase: e.target.value as Phase })}>
               {(["1", "2", "3"] as const).map((p) => <option key={p} value={p}>{t(`phase.${p}` as MessageKey)}</option>)}
             </select>
@@ -73,12 +73,12 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
       </section>
 
       <section className="block">
-        <Head title={t("chart.weight")} help={t("chart.weightLegend")} />
+        <Head title={t("chart.weight")} sub={t("chart.weightLegend")} />
         <WeightChart days={days} dates={chartDates} />
       </section>
 
       <section className="block">
-        <Head title={t("chart.steps")} help={settings.stepGoal != null ? t("chart.stepsLegend") : undefined} />
+        <Head title={t("chart.steps")} sub={settings.stepGoal != null ? t("chart.stepsLegend") : undefined} />
         <StepsChart days={days} dates={dates} goal={settings.stepGoal} />
       </section>
     </>

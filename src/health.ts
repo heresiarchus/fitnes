@@ -2,7 +2,7 @@ import { Health } from "@capgo/capacitor-health";
 import { db, getHealthState, getSettings, saveDays, setHealthState, updateSettings } from "./db";
 import { makeT, type MessageKey } from "./i18n";
 import { addDays } from "./lib/date";
-import { dayRanges, type HcAggregate, type HcSample, type HcWorkout, mapHealth } from "./lib/healthMap";
+import { dayRanges, type HcAggregate, type HcSample, type HcWorkout, mapHealth, samsungSteps, type StepRecord } from "./lib/healthMap";
 import { applySamsung } from "./lib/samsung";
 import type { DayEntry, DaysMap, Settings, SourceKey } from "./lib/types";
 import { SOURCE_KEYS } from "./lib/types";
@@ -48,24 +48,37 @@ export interface TypeReport { type: HType; granted: boolean; count: number; last
 
 const range = (days: number) => ({ startDate: addDays(new Date(), -days).toISOString(), endDate: new Date().toISOString() });
 
+/** Health Connect's merged total for one day; it follows the app priority set in Health Connect. */
+async function aggregateDay(start: Date, end: Date): Promise<number> {
+  const x = await Health.queryAggregated({ dataType: "steps", startDate: start.toISOString(), endDate: end.toISOString(), bucket: "day", aggregation: "sum" });
+  return x.samples.reduce((a, b) => a + (b.value || 0), 0);
+}
+
 /**
- * Step totals per calendar day. Each day is asked for separately, from local midnight
- * to the next, because the plugin's "day" buckets start at the query's start time
- * rather than at midnight and would mix two days together.
+ * Step totals per calendar day, midnight to midnight. Samsung Health's own records
+ * are used when present, so another app higher in Health Connect's priority list
+ * (e.g. the phone's own counter) can't replace the watch's count. The merged total
+ * is the fallback for days Samsung Health wrote nothing.
  */
 async function readDailySteps(days: number): Promise<HcAggregate[]> {
   const ranges = dayRanges(new Date(), days);
   const out: HcAggregate[] = [];
-  for (let i = 0; i < ranges.length; i += 6) {
-    const batch = ranges.slice(i, i + 6);
-    const res = await Promise.all(batch.map((r) =>
-      Health.queryAggregated({ dataType: "steps", startDate: r.start.toISOString(), endDate: r.end.toISOString(), bucket: "day", aggregation: "sum" })));
-    res.forEach((x, j) => {
-      const total = x.samples.reduce((a, b) => a + (b.value || 0), 0);
-      out.push({ startDate: batch[j].start.toISOString(), value: total });
-    });
+  for (let i = 0; i < ranges.length; i += 4) {
+    const batch = ranges.slice(i, i + 4);
+    const res = await Promise.all(batch.map(async (r) => {
+      const recs = (await Health.readSamples({ dataType: "steps", startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as StepRecord[];
+      return samsungSteps(recs) ?? (await aggregateDay(r.start, r.end));
+    }));
+    res.forEach((v, j) => out.push({ startDate: batch[j].start.toISOString(), value: v }));
   }
   return out;
+}
+
+/** Today's steps both ways, to compare with the watch. */
+export async function todaySteps(): Promise<{ samsung: number | null; merged: number }> {
+  const r = dayRanges(new Date(), 1)[0];
+  const recs = (await Health.readSamples({ dataType: "steps", startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as StepRecord[];
+  return { samsung: samsungSteps(recs), merged: await aggregateDay(r.start, r.end) };
 }
 
 async function readType(type: HType, days: number): Promise<{ samples?: HcSample[]; steps?: HcAggregate[]; workouts?: HcWorkout[]; raw: { startDate: string; sourceName?: string }[] }> {
@@ -166,12 +179,12 @@ async function run(daysArg?: number): Promise<number> {
   }
 }
 
-/** Pulls on start, whenever the app comes back to the screen, and every 30 minutes while open. */
+/** Pulls on start, whenever the app comes back to the screen, and every 10 minutes while open. */
 export function startAutoHealth() {
   if (!isNative) return;
   void pullHealth();
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void pullHealth(); });
-  setInterval(() => void pullHealth(), 30 * 60 * 1000);
+  setInterval(() => void pullHealth(), 10 * 60 * 1000);
 }
 
 export const openHealthSettings = () => Health.openHealthConnectSettings();

@@ -76,8 +76,8 @@ export function HistoryCharts({ days }: { days: DaysMap }) {
 
   return (
     <>
-      {weights.length >= 2 && <section className="block"><Head title={t("hist.weight")} help={t("hist.weightHelp")} />{wChart()}</section>}
-      {months.length > 0 && <section className="block"><Head title={t("hist.activity")} help={t("hist.activityHelp")} />{aChart()}</section>}
+      {weights.length >= 2 && <section className="block"><Head title={t("hist.weight")} sub={t("hist.weightHelp")} />{wChart()}</section>}
+      {months.length > 0 && <section className="block"><Head title={t("hist.activity")} sub={t("hist.activityHelp")} />{aChart()}</section>}
     </>
   );
 }

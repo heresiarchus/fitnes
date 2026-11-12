@@ -48,10 +48,15 @@ export function planReminders(r: Reminders, days: DaysMap, now: Date, daysAhead:
     for (let i = 0; i < daysAhead; i++) {
       const day = addDays(now, i);
       if (kind === "review" && day.getDay() !== 0) continue;
-      const at = atMinutes(day, t);
-      if (at.getTime() <= now.getTime()) continue;
       if (i === 0 && isDone(kind, days, today)) continue;
-      out.push({ id: (k + 1) * 100 + i, kind, at });
+      // The evening check repeats every 30 minutes until 23:30, like a medication reminder.
+      const times = kind === "evening" ? Array.from({ length: 8 }, (_, n) => t + n * 30).filter((m) => m <= 23 * 60 + 30) : [t];
+      times.forEach((m, rep) => {
+        const at = atMinutes(day, m);
+        // Evening repeats get their own id range (5000+) so delivered ones can be cleared once the day is complete.
+        const id = kind === "evening" ? 5000 + i * 10 + rep : (k + 1) * 100 + i;
+        if (at.getTime() > now.getTime()) out.push({ id, kind, at });
+      });
     }
   });
   habits.forEach((habit, h) => {

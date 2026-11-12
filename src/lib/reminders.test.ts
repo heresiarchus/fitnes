@@ -10,14 +10,16 @@ describe("planReminders", () => {
   it("skips past times and disabled reminders", () => {
     const now = new Date(2026, 10, 11, 9, 30);
     const plan = planReminders(r, {}, now, 2);
-    expect(plan.map((p) => [p.kind, p.at.getDate(), p.at.getHours()])).toEqual([["evening", 11, 21], ["weigh", 12, 8], ["evening", 12, 21]]);
-    expect(new Set(plan.map((p) => p.id)).size).toBe(3);
+    expect(plan.filter((p) => p.at.getMinutes() === 0).map((p) => [p.kind, p.at.getDate(), p.at.getHours()])).toEqual([["evening", 11, 21], ["evening", 11, 22], ["evening", 11, 23], ["weigh", 12, 8], ["evening", 12, 21], ["evening", 12, 22], ["evening", 12, 23]]);
+    expect(plan.filter((p) => p.kind === "evening" && p.at.getDate() === 11).map((p) => `${p.at.getHours()}:${p.at.getMinutes()}`)).toEqual(["21:0", "21:30", "22:0", "22:30", "23:0", "23:30"]);
+    expect(new Set(plan.map((p) => p.id)).size).toBe(plan.length);
   });
   it("drops today's reminder once the data is logged, keeps tomorrow's", () => {
     const now = new Date(2026, 10, 11, 7, 0);
     const days = { "2026-11-11": { date: "2026-11-11", updatedAt: u, noWeight: true as const, feel: 4 } };
     const plan = planReminders(r, days, now, 2);
-    expect(plan.map((p) => [p.kind, p.at.getDate()])).toEqual([["weigh", 12], ["evening", 12]]);
+    expect(plan.map((p) => [p.kind, p.at.getDate()]).filter(([, d]) => d === 11)).toEqual([]);
+    expect(plan[0]).toMatchObject({ kind: "weigh" });
   });
   it("handles the pressure reminder and bad times", () => {
     const now = new Date(2026, 10, 11, 7, 0);

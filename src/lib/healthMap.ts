@@ -79,3 +79,31 @@ export function dayRanges(now: Date, days: number): { date: string; start: Date;
   }
   return out;
 }
+
+export interface StepRecord { startDate: string; endDate: string; value: number; sourceName?: string }
+
+export const isSamsung = (source: string | undefined) => !!source && /shealth|samsung/i.test(source);
+
+/**
+ * Samsung Health's own step total for one day. Overlapping records (the same
+ * minutes counted by phone and watch) are merged keeping the larger count, so
+ * nothing is counted twice. Returns null when Samsung Health wrote nothing that day.
+ */
+export function samsungSteps(records: StepRecord[]): number | null {
+  const own = records.filter((r) => isSamsung(r.sourceName) && r.value > 0)
+    .map((r) => ({ s: Date.parse(r.startDate), e: Date.parse(r.endDate), v: r.value }))
+    .sort((a, b) => a.s - b.s || b.e - a.e);
+  if (!own.length) return null;
+  let total = 0;
+  let cur = own[0];
+  for (const r of own.slice(1)) {
+    if (r.s < cur.e) {
+      // Overlap: keep the cluster's larger count and extend it.
+      cur = { s: cur.s, e: Math.max(cur.e, r.e), v: Math.max(cur.v, r.v) };
+    } else {
+      total += cur.v;
+      cur = r;
+    }
+  }
+  return Math.round(total + cur.v);
+}
