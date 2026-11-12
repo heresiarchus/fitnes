@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapHealth } from "./healthMap";
+import { dayRanges, mapHealth } from "./healthMap";
 import { applySamsung } from "./samsung";
 
 const at = (y: number, m: number, d: number, h: number, min = 0) => new Date(y, m - 1, d, h, min).toISOString();
@@ -46,5 +46,22 @@ describe("Health Connect mapping", () => {
     expect(manual.sleepMin).toBeUndefined();
     // A second pull of the same data changes nothing.
     expect(applySamsung({ "2026-11-11": r.changes[0] }, data, all, (k) => k).changes).toEqual([]);
+  });
+});
+
+describe("calendar day ranges for step totals", () => {
+  it("runs from local midnight to midnight, the last day ending now", () => {
+    const now = new Date(2026, 10, 12, 9, 37);
+    const r = dayRanges(now, 3);
+    expect(r.map((x) => x.date)).toEqual(["2026-11-10", "2026-11-11", "2026-11-12"]);
+    expect(r[0].start).toEqual(new Date(2026, 10, 10, 0, 0));
+    expect(r[1].end).toEqual(new Date(2026, 10, 12, 0, 0));
+    expect(r[2].end).toEqual(now);
+    // Each day is labelled by its own date, never by the previous one.
+    for (const x of r) expect(x.start.getHours()).toBe(0);
+  });
+  it("keeps whole days across a month boundary", () => {
+    const r = dayRanges(new Date(2026, 11, 1, 12, 0), 2);
+    expect(r.map((x) => x.date)).toEqual(["2026-11-30", "2026-12-01"]);
   });
 });
