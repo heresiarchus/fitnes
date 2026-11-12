@@ -15,10 +15,11 @@ export function SettingsMenu({ settings, syncOn, sheetsOn }: { settings: Setting
     { cat: "connect", icon: "sync", warn: !syncOn || sync.state === "error",
       state: [`GitHub: ${syncOn ? (sync.state === "error" ? t("menu.error") : yes) : no}`, `Samsung: ${settings.healthLinked || health?.on ? yes : no}`, `Google: ${sheetsOn ? yes : no}`].join(" · ") },
     { cat: "sources", icon: "watch", state: settings.healthLinked ? t("menu.sourcesSet") : t("menu.manualOnly") },
+    { cat: "goals", icon: "move", state: settings.goals.filter((g) => g.on).map((g) => t(`goal.${g.metric}` as MessageKey)).join(", ") || no },
     { cat: "reminders", icon: "bell", state: settings.reminders.evening.on ? `${settings.reminders.evening.time}–${settings.reminders.evening.until ?? ""}` : no },
     { cat: "habits", icon: "habits", state: t("menu.habits", { n: settings.habits.filter((h) => h.enabled).length }) },
     { cat: "look", icon: "palette", state: t(`pal.${settings.palette}` as MessageKey) },
-    { cat: "program", icon: "move", state: t(`phase.${settings.phase}` as MessageKey) },
+    { cat: "program", icon: "strength", state: t(`phase.${settings.phase}` as MessageKey) },
     { cat: "data", icon: "data", state: t("menu.data") },
     { cat: "about", icon: "more", state: t("menu.about") },
   ];

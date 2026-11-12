@@ -91,6 +91,8 @@ export interface SamsungData {
   /** Night sleep by wake-up date and resting pulse by date (from Health Connect only). */
   sleep?: Record<string, { minutes: number; start?: string; end?: string; napMin?: number }>;
   restingHr?: Record<string, number>;
+  activeKcal?: Record<string, number>;
+  distanceKm?: Record<string, number>;
   exercise: SamsungExercise[];
   weight: SamsungWeight[];
   bp: SamsungBp[];
@@ -241,6 +243,13 @@ export function applySamsung(
       const merged = { ...(d.bp ?? {}), ...bp };
       if (JSON.stringify(merged) !== JSON.stringify(d.bp ?? {})) { d.bp = merged; put("bp", d); }
     }
+  }
+
+  if (sources.exercise) {
+    for (const [date, v] of Object.entries(data.activeKcal ?? {})) { const d = get(date); if (d.activeKcal !== v) { d.activeKcal = v; next.set(date, d); } }
+  }
+  if (sources.steps) {
+    for (const [date, v] of Object.entries(data.distanceKm ?? {})) { const d = get(date); if (d.distanceKm !== v) { d.distanceKm = v; next.set(date, d); } }
   }
 
   if (sources.sleep) {

@@ -9,5 +9,5 @@
     <string name="widget_steps">Кроки</string>
     <string name="widget_walk">Ходьба</string>
     <string name="widget_action">+ Запис</string>
-    <string name="widget_description">Вага, кроки й ходьба за сьогодні</string>
+    <string name="widget_description">Цілі на сьогодні: кроки, активні калорії, активний час</string>
 </resources>

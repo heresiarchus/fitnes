@@ -24,7 +24,12 @@ public class FitnesWidget extends AppWidgetProvider {
     static final String PREFS = "fitnes_widget";
     static final String[] KEYS = {
         "date", "title", "empty", "action",
-        "weightLabel", "weight", "stepsLabel", "steps", "walkLabel", "walk"
+        "g1Label", "g1Value", "g1Pct", "g2Label", "g2Value", "g2Pct", "g3Label", "g3Value", "g3Pct"
+    };
+    private static final int[][] ROWS = {
+        {R.id.w_g1, R.id.w_g1_label, R.id.w_g1_value, R.id.w_g1_bar},
+        {R.id.w_g2, R.id.w_g2_label, R.id.w_g2_value, R.id.w_g2_bar},
+        {R.id.w_g3, R.id.w_g3_label, R.id.w_g3_value, R.id.w_g3_bar},
     };
 
     @Override
@@ -50,12 +55,17 @@ public class FitnesWidget extends AppWidgetProvider {
 
         RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.widget_fitnes);
         v.setTextViewText(R.id.w_title, p.getString("title", context.getString(R.string.widget_title)));
-        v.setTextViewText(R.id.w_weight_label, p.getString("weightLabel", context.getString(R.string.widget_weight)));
-        v.setTextViewText(R.id.w_steps_label, p.getString("stepsLabel", context.getString(R.string.widget_steps)));
-        v.setTextViewText(R.id.w_walk_label, p.getString("walkLabel", context.getString(R.string.widget_walk)));
-        v.setTextViewText(R.id.w_weight, fresh ? p.getString("weight", empty) : empty);
-        v.setTextViewText(R.id.w_steps, fresh ? p.getString("steps", empty) : empty);
-        v.setTextViewText(R.id.w_walk, fresh ? p.getString("walk", empty) : empty);
+        // Up to three goals: label, "value / target" and a progress bar. Values from another day show as empty.
+        for (int i = 0; i < ROWS.length; i++) {
+            String n = "g" + (i + 1);
+            String label = p.getString(n + "Label", "");
+            v.setViewVisibility(ROWS[i][0], label.isEmpty() ? android.view.View.GONE : android.view.View.VISIBLE);
+            v.setTextViewText(ROWS[i][1], label);
+            v.setTextViewText(ROWS[i][2], fresh ? p.getString(n + "Value", empty) : empty);
+            int pct = 0;
+            try { pct = fresh ? Integer.parseInt(p.getString(n + "Pct", "0")) : 0; } catch (NumberFormatException ignored) { }
+            v.setProgressBar(ROWS[i][3], 100, pct, false);
+        }
         v.setTextViewText(R.id.w_action, p.getString("action", context.getString(R.string.widget_action)));
 
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;

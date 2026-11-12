@@ -11,6 +11,7 @@ import { Card, Icon } from "./Card";
 import { HabitMarker } from "./HabitMarker";
 import { type HabitRow, markFromRow, rowFromMark } from "../lib/dayForm";
 import { ChipScale } from "./ChipScale";
+import { ScaleButton } from "./ScaleButton";
 import { Stepper } from "./Stepper";
 import { WeightPicker } from "./WeightPicker";
 
@@ -59,6 +60,7 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
       return (
         <Card key="w" icon="weight" title={t("form.weight")}>
           <WeightPicker value={value} onChange={setW} />
+          <ScaleButton onWeight={(kg) => setW(kg.toFixed(1))} />
           <div className="pill-row">
             <button type="button" className="primary compact" onClick={() => { const v = num(value); if (v) void save({ weight: v, weightCond: "other" }); }}>
               {t("due.save")} {value ? fmt(num(value), lang) : ""}

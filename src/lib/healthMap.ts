@@ -21,6 +21,7 @@ const hm = (d: Date) => d.toTimeString().slice(0, 5);
  */
 export function mapHealth(input: {
   steps?: HcAggregate[]; workouts?: HcWorkout[]; weight?: HcSample[]; bp?: HcSample[]; sleep?: HcSample[]; restingHr?: HcSample[];
+  activeKcal?: HcAggregate[]; distance?: HcAggregate[];
 }): SamsungData {
   const out = emptySamsung();
   out.sleep = {};
@@ -49,6 +50,10 @@ export function mapHealth(input: {
   }
   if (input.bp) out.kinds.push("bp");
   Object.assign(out.sleep, sleepByDay(input.sleep ?? []));
+  out.activeKcal = {};
+  out.distanceKm = {};
+  for (const s of input.activeKcal ?? []) if (s.value > 0) out.activeKcal[iso(new Date(s.startDate))] = Math.round(s.value);
+  for (const s of input.distance ?? []) if (s.value > 0) out.distanceKm[iso(new Date(s.startDate))] = Math.round(s.value / 10) / 100;
   for (const s of input.restingHr ?? []) {
     if (s.value > 0) out.restingHr[iso(new Date(s.startDate))] = Math.round(s.value);
   }

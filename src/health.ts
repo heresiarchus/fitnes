@@ -8,9 +8,9 @@ import type { DayEntry, DaysMap, Settings, SourceKey } from "./lib/types";
 import { SOURCE_KEYS } from "./lib/types";
 import { isNative } from "./native";
 
-type HType = "steps" | "workouts" | "weight" | "bloodPressure" | "sleep" | "restingHeartRate" | "heartRate";
+type HType = "steps" | "workouts" | "weight" | "bloodPressure" | "sleep" | "restingHeartRate" | "heartRate" | "calories" | "distance";
 const TYPES: Record<SourceKey, HType[]> = {
-  steps: ["steps"], exercise: ["workouts", "heartRate"], weight: ["weight"], bp: ["bloodPressure"], sleep: ["sleep", "restingHeartRate"],
+  steps: ["steps", "distance"], exercise: ["workouts", "heartRate", "calories"], weight: ["weight"], bp: ["bloodPressure"], sleep: ["sleep", "restingHeartRate"],
 };
 const ALL: HType[] = SOURCE_KEYS.flatMap((k) => TYPES[k]);
 /** Regular pulls look a week back; a full pull covers what Health Connect allows without history access. */
@@ -49,9 +49,21 @@ export interface TypeReport { type: HType; granted: boolean; count: number; last
 const range = (days: number) => ({ startDate: addDays(new Date(), -days).toISOString(), endDate: new Date().toISOString() });
 
 /** Health Connect's merged total for one day; it follows the app priority set in Health Connect. */
-async function aggregateDay(start: Date, end: Date): Promise<number> {
-  const x = await Health.queryAggregated({ dataType: "steps", startDate: start.toISOString(), endDate: end.toISOString(), bucket: "day", aggregation: "sum" });
+async function aggregateDay(start: Date, end: Date, dataType: "steps" | "calories" | "distance" = "steps"): Promise<number> {
+  const x = await Health.queryAggregated({ dataType, startDate: start.toISOString(), endDate: end.toISOString(), bucket: "day", aggregation: "sum" });
   return x.samples.reduce((a, b) => a + (b.value || 0), 0);
+}
+
+/** Per-day totals for calories or distance (midnight to midnight). */
+async function readDailyTotals(dataType: "calories" | "distance", days: number): Promise<HcAggregate[]> {
+  const ranges = dayRanges(new Date(), days);
+  const out: HcAggregate[] = [];
+  for (let i = 0; i < ranges.length; i += 6) {
+    const batch = ranges.slice(i, i + 6);
+    const res = await Promise.all(batch.map((r) => aggregateDay(r.start, r.end, dataType)));
+    res.forEach((v, j) => out.push({ startDate: batch[j].start.toISOString(), value: v }));
+  }
+  return out;
 }
 
 /**
@@ -86,6 +98,10 @@ async function readType(type: HType, days: number): Promise<{ samples?: HcSample
   if (type === "workouts") {
     const w = (await Health.queryWorkouts({ ...r, limit: 500, ascending: true })).workouts;
     return { workouts: w as HcWorkout[], raw: w };
+  }
+  if (type === "calories" || type === "distance") {
+    const agg = await readDailyTotals(type, days);
+    return { steps: agg, raw: agg.filter((a) => a.value > 0) };
   }
   if (type === "steps") {
     // Health Connect removes phone/watch duplicates itself when aggregating.
@@ -152,6 +168,8 @@ async function run(daysArg?: number): Promise<number> {
         const r = await readType(type, span);
         if (type === "steps") got.steps = r.steps;
         else if (type === "workouts") got.workouts = r.workouts;
+        else if (type === "calories") got.activeKcal = r.steps;
+        else if (type === "distance") got.distance = r.steps;
         else if (type === "weight") got.weight = r.samples;
         else if (type === "bloodPressure") got.bp = r.samples;
         else if (type === "sleep") got.sleep = r.samples;

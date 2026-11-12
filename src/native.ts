@@ -1,7 +1,8 @@
 import { App as CapApp } from "@capacitor/app";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
-import type { TFn } from "./i18n";
+import type { MessageKey, TFn } from "./i18n";
+import { GOAL_DEFS, goalProgress } from "./lib/goals";
 import { iso } from "./lib/date";
 import { fmt, fmtInt } from "./lib/format";
 import { eveningDay, eveningMissing } from "./lib/due";
@@ -16,25 +17,22 @@ export const APK_URL = "https://github.com/heresiarchus/fitnes/releases/latest/d
 interface WidgetPlugin { update(data: Record<string, string>): Promise<void> }
 const Widget = registerPlugin<WidgetPlugin>("FitnesWidget");
 
-/** Pushes today's numbers to the home-screen widget. */
-export async function updateWidget(days: DaysMap, t: TFn, lang: Lang) {
-  if (!isNative) return;
+/** Pushes today's goal progress to the home-screen widget (first three enabled goals). */
+export async function updateWidget(days: DaysMap, t: TFn, lang: Lang, settings?: Settings) {
+  if (!isNative || !settings) return;
   const today = iso(new Date());
-  const d = days[today];
   const none = t("today.none");
+  const data: Record<string, string> = { date: today, title: t("goals.today"), empty: none, action: t("widget.action") };
+  goalProgress(settings, days[today]).slice(0, 3).forEach((g, i) => {
+    const def = GOAL_DEFS.find((d) => d.metric === g.metric)!;
+    const f = (v: number) => (def.step < 1 ? fmt(v, lang) : fmtInt(v, lang));
+    data[`g${i + 1}Label`] = t(`goal.${g.metric}` as MessageKey);
+    data[`g${i + 1}Value`] = `${g.value == null ? none : f(g.value)} / ${f(g.target)}${def.unit ? " " + def.unit : ""}`;
+    data[`g${i + 1}Pct`] = String(g.pct);
+  });
+  for (let i = goalProgress(settings, days[today]).slice(0, 3).length; i < 3; i++) data[`g${i + 1}Label`] = "";
   try {
-    await Widget.update({
-      date: today,
-      title: t("today.title"),
-      empty: none,
-      action: t("widget.action"),
-      weightLabel: t("cal.day.weight"),
-      weight: d?.weight != null ? `${fmt(d.weight, lang)} ${t("common.kg")}` : none,
-      stepsLabel: t("cal.day.steps"),
-      steps: d?.steps != null ? fmtInt(d.steps, lang) : none,
-      walkLabel: t("cal.day.walk"),
-      walk: d?.walkMin ? `${d.walkMin} ${t("common.min")}` : none,
-    });
+    await Widget.update(data);
   } catch {
     // The widget is optional; never let it break the app.
   }

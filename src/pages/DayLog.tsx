@@ -5,6 +5,7 @@ import { SyncWarning } from "../components/SyncBadge";
 import { Card } from "../components/Card";
 import { DiaryAdd, DiaryList } from "../components/Diary";
 import { SamsungCard } from "../components/SamsungCard";
+import { ScaleButton } from "../components/ScaleButton";
 import { ChipScale as Scale } from "../components/ChipScale";
 import { HabitMarker } from "../components/HabitMarker";
 import { Stepper } from "../components/Stepper";
@@ -208,6 +209,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
                     : <button type="button" className="pill" onClick={() => setF((p) => weighed(p, p.weight))}>{t("form.weighAfterAll")}</button>}
                 </div>
               )}
+              <ScaleButton onWeight={(kg) => setF((p) => weighed(p, kg.toFixed(1)))} />
               <div className="seg full" role="radiogroup" aria-label={t("form.weightCond")}>
                 {(["morning", "other"] as const).map((c) => (
                   <button key={c} type="button" role="radio" aria-checked={f.weightCond === c} className={f.weightCond === c ? "on" : ""} onClick={() => set("weightCond", c)}>{t(c === "morning" ? "form.cond.morning" : "form.cond.other")}</button>
