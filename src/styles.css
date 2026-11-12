@@ -33,6 +33,23 @@
   --ink: #0a0a0a; --muted: #474747; --line: #cfcfcf;
   --accent: #111111; --accent-ink: #111111; --accent-soft: #e2e2e2; --on-accent: #ffffff;
 }
+/* generated presets (contrast-checked: text ≥ 4.5:1 on its surfaces) */
+:root[data-palette="gold"] { --bg: #f6f4ef; --surface: #fcfcfa; --surface-hi: #ffffff; --field: #efede6; --field-2: #e3dfd4; --ink: #1b170e; --muted: #565043; --line: #ded9cf; --accent: #9a6a00; --accent-ink: #7a5200; --accent-soft: #faf1db; --on-accent: #ffffff; }
+:root[data-theme="dark"][data-palette="gold"] { --bg: #100e0a; --surface: #1f1c14; --surface-hi: #27241b; --field: #2f2b23; --field-2: #413c30; --ink: #f7f6f2; --muted: #c0bbaf; --line: #413c30; --accent: #e9c46a; --accent-ink: #e9c46a; --accent-soft: #433719; --on-accent: #2a1d00; }
+:root[data-palette="lavender"] { --bg: #f2f0f5; --surface: #fbfafc; --surface-hi: #ffffff; --field: #eae7ee; --field-2: #dad6e1; --ink: #130e1b; --muted: #4a4356; --line: #d5d1dc; --accent: #6d28d9; --accent-ink: #5b21b6; --accent-soft: #e7dbfa; --on-accent: #ffffff; }
+:root[data-theme="dark"][data-palette="lavender"] { --bg: #0c0b0f; --surface: #18161d; --surface-hi: #201d26; --field: #28242d; --field-2: #36323e; --ink: #f4f2f7; --muted: #b5afc0; --line: #36323e; --accent: #c4b5fd; --accent-ink: #c4b5fd; --accent-soft: #281943; --on-accent: #1e0f45; }
+:root[data-palette="forest"] { --bg: #f0f4f3; --surface: #fafcfb; --surface-hi: #ffffff; --field: #e8eeeb; --field-2: #d7e0dc; --ink: #0e1b16; --muted: #43564f; --line: #d2dbd7; --accent: #047857; --accent-ink: #065f46; --accent-soft: #dbfaef; --on-accent: #ffffff; }
+:root[data-theme="dark"][data-palette="forest"] { --bg: #0b0f0d; --surface: #161d1a; --surface-hi: #1e2522; --field: #252c2a; --field-2: #333d39; --ink: #f2f7f5; --muted: #afc0ba; --line: #333d39; --accent: #6ee7b7; --accent-ink: #6ee7b7; --accent-soft: #194333; --on-accent: #022c1f; }
+:root[data-palette="ocean"] { --bg: #f0f4f5; --surface: #fafcfc; --surface-hi: #ffffff; --field: #e7edee; --field-2: #d6dfe1; --ink: #0e181b; --muted: #435256; --line: #d1d9dc; --accent: #0e7490; --accent-ink: #155e75; --accent-soft: #dbf4fa; --on-accent: #ffffff; }
+:root[data-theme="dark"][data-palette="ocean"] { --bg: #0b0e0f; --surface: #161c1d; --surface-hi: #1d2426; --field: #242b2d; --field-2: #323c3e; --ink: #f2f6f7; --muted: #afbdc0; --line: #323c3e; --accent: #67e8f9; --accent-ink: #67e8f9; --accent-soft: #193a43; --on-accent: #032631; }
+:root[data-palette="rose"] { --bg: #f5f0f2; --surface: #fcfafb; --surface-hi: #ffffff; --field: #eee7eb; --field-2: #e1d6db; --ink: #1b0e14; --muted: #56434c; --line: #dcd1d6; --accent: #be185d; --accent-ink: #9d174d; --accent-soft: #fadbeb; --on-accent: #ffffff; }
+:root[data-theme="dark"][data-palette="rose"] { --bg: #0f0b0d; --surface: #1d161a; --surface-hi: #261d21; --field: #2d2429; --field-2: #3e3238; --ink: #f7f2f5; --muted: #c0afb8; --line: #3e3238; --accent: #f9a8d4; --accent-ink: #f9a8d4; --accent-soft: #43192e; --on-accent: #3b0720; }
+:root[data-palette="coral"] { --bg: #f5f1ef; --surface: #fcfbfa; --surface-hi: #ffffff; --field: #efe9e6; --field-2: #e2d9d5; --ink: #1b120e; --muted: #564943; --line: #ddd4d0; --accent: #c2410c; --accent-ink: #9a3412; --accent-soft: #fae4db; --on-accent: #ffffff; }
+:root[data-theme="dark"][data-palette="coral"] { --bg: #0f0c0a; --surface: #1e1815; --surface-hi: #261f1c; --field: #2e2723; --field-2: #3f3531; --ink: #f7f4f2; --muted: #c0b4af; --line: #3f3531; --accent: #fdba74; --accent-ink: #fdba74; --accent-soft: #432619; --on-accent: #3a1203; }
+:root[data-palette="olive"] { --bg: #f3f4f0; --surface: #fbfcfa; --surface-hi: #ffffff; --field: #ebeee8; --field-2: #dce0d7; --ink: #151b0e; --muted: #4e5643; --line: #d7dbd2; --accent: #4d7c0f; --accent-ink: #3f6212; --accent-soft: #edfadb; --on-accent: #ffffff; }
+:root[data-theme="dark"][data-palette="olive"] { --bg: #0d0f0b; --surface: #1a1d16; --surface-hi: #22251e; --field: #292c25; --field-2: #393d33; --ink: #f5f7f2; --muted: #b9c0af; --line: #393d33; --accent: #bef264; --accent-ink: #bef264; --accent-soft: #314319; --on-accent: #1a2b03; }
+:root[data-palette="indigo"] { --bg: #f0f0f5; --surface: #fafbfc; --surface-hi: #ffffff; --field: #e7e8ee; --field-2: #d6d7e1; --ink: #0e101b; --muted: #434656; --line: #d1d2dc; --accent: #4338ca; --accent-ink: #3730a3; --accent-soft: #dbdffa; --on-accent: #ffffff; }
+:root[data-theme="dark"][data-palette="indigo"] { --bg: #0b0b0f; --surface: #16171d; --surface-hi: #1d1e26; --field: #24262d; --field-2: #32343e; --ink: #f2f3f7; --muted: #afb1c0; --line: #32343e; --accent: #a5b4fc; --accent-ink: #a5b4fc; --accent-soft: #191f43; --on-accent: #111545; }
 /* dark variants */
 :root[data-theme="dark"] {
   --bg: #0c0f0f; --surface: #171b1b; --surface-hi: #1f2524; --field: #252c2b; --field-2: #323b39;
@@ -525,3 +542,20 @@ section.block.menu { padding: 6px; gap: 0; }
 }
 
 .page-head .head-row h1 { margin: 0; }
+
+.measure-row { display: grid; grid-template-columns: minmax(0, 220px) auto; gap: 10px; align-items: center; }
+.unit { color: var(--muted); font-weight: 650; }
+.measure-drum { position: relative; display: inline-flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: var(--radius); background: var(--field); justify-self: start; }
+.measure-drum::before { content: ""; position: absolute; left: 6px; right: 6px; top: 50%; height: 44px; transform: translateY(-50%); background: var(--surface-hi); border-radius: 12px; pointer-events: none; }
+.measure-drum .wheel { width: 96px; }
+.measure-drum.pending { opacity: 0.7; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.choice-row .chip { padding: 0 14px; font-weight: 650; }
+.pill.on { background: var(--accent); color: var(--on-accent); }
+.preview { background: var(--surface); border-radius: 16px; padding: 12px; border: 1px dashed var(--line); }
+
+.pal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pal-prev { display: grid !important; grid-template-columns: 1fr 1fr; width: 100%; height: 34px; border-radius: 10px; overflow: hidden; border: 1px solid rgb(0 0 0 / 0.1); gap: 0 !important; }
+.pal-prev em { display: flex; align-items: center; justify-content: center; gap: 5px; background: #fff; }
+.pal-prev b { width: 16px !important; height: 16px !important; border-radius: 50% !important; border: 0 !important; }
+.measure-drum > * { position: relative; }

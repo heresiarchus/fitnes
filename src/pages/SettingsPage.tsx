@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Head } from "../components/Head";
+import { HabitEditor } from "../components/HabitEditor";
 import { Stepper } from "../components/Stepper";
 import { SyncBadge } from "../components/SyncBadge";
 import { Link, useParams } from "react-router-dom";
@@ -18,15 +19,22 @@ import { num } from "../lib/format";
 import { applySamsung, emptySamsung, parseSamsungFile } from "../lib/samsung";
 import { syncNow } from "../sync/engine";
 import { checkRepo, SyncError } from "../sync/github";
-import type { DaysMap, Habit, Lang, Phase, Settings, Theme } from "../lib/types";
+import type { DaysMap, Lang, Phase, Settings, Theme } from "../lib/types";
 import { fromWatch, PALETTES, type Palette, type ReminderKind, SOURCE_KEYS } from "../lib/types";
 
-const PAL_SWATCH: Record<Palette, string[]> = {
-  mint: ["#e9edee", "#9aa6a3", "#0f766e", "#5eead4"],
-  steel: ["#e8ebef", "#8a94a3", "#1d4ed8", "#93b4ff"],
-  sand: ["#efebe5", "#a5978a", "#b4532a", "#f0a27c"],
-  graphite: ["#ffffff", "#9e9e9e", "#111111", "#000000"],
-};
+/** Light accent, light tint, dark accent, dark surface — shown on each style card. */
+const PAL_SWATCH: Record<Palette, string[]> = {"mint": ["#0f766e", "#d6f1ea", "#5eead4", "#171b1b"],
+   "steel": ["#1d4ed8", "#dde7fd", "#93b4ff", "#161a21"],
+   "sand": ["#b4532a", "#f6e1d5", "#f0a27c", "#1d1915"],
+   "graphite": ["#111111", "#e2e2e2", "#ffffff", "#121212"],
+   "gold": ["#9a6a00", "#faf1db", "#e9c46a", "#1f1c14"],
+   "lavender": ["#6d28d9", "#e7dbfa", "#c4b5fd", "#18161d"],
+   "forest": ["#047857", "#dbfaef", "#6ee7b7", "#161d1a"],
+   "ocean": ["#0e7490", "#dbf4fa", "#67e8f9", "#161c1d"],
+   "rose": ["#be185d", "#fadbeb", "#f9a8d4", "#1d161a"],
+   "coral": ["#c2410c", "#fae4db", "#fdba74", "#1e1815"],
+   "olive": ["#4d7c0f", "#edfadb", "#bef264", "#1a1d16"],
+   "indigo": ["#4338ca", "#dbdffa", "#a5b4fc", "#16171d"]};
 import { APK_URL, askNotifications, isNative, newerShell, notificationsAllowed } from "../native";
 import { checkForUpdate } from "../components/PwaPrompt";
 
@@ -167,10 +175,8 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
     setStatus(bad && !w && !m ? { text: t("hist.importError"), kind: "err" } : { text: t("hist.imported", { w, m }), kind: "ok" });
   }
 
-  const setHabit = (id: string, patch: Partial<Habit>) =>
-    updateSettings({ habits: settings.habits.map((h) => (h.id === id ? { ...h, ...patch } : h)) });
   const addHabit = () =>
-    updateSettings({ habits: [...settings.habits, { id: newId("habit"), title: "", minVersion: "", enabled: true, activeFrom: new Date().toISOString().slice(0, 10), remind: null }] });
+    updateSettings({ habits: [...settings.habits, { id: newId("habit"), title: t("hb.newTitle"), minVersion: "", enabled: true, activeFrom: new Date().toISOString().slice(0, 10), remind: null, measure: { type: "count", unit: "раз", min: 0, max: 100, step: 1 } }] });
 
   const pair = readPairCode(token);
   async function copyPairCode() {
@@ -429,32 +435,8 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
                 <span className="ex-name"><b>{h.title || t("habit.name")}</b></span>
                 <span className={"ex-sum" + (h.enabled ? " set" : "")}>{t(h.enabled ? "habit.on" : "habit.off")}</span>
               </summary>
-              <div className="habit-edit">
-                <div className="seg full" role="radiogroup" aria-label={h.title}>
-                  <button type="button" role="radio" aria-checked={h.enabled} className={h.enabled ? "on" : ""} onClick={() => setHabit(h.id, { enabled: true, activeFrom: h.activeFrom ?? new Date().toISOString().slice(0, 10) })}>{t("habit.on")}</button>
-                  <button type="button" role="radio" aria-checked={!h.enabled} className={!h.enabled ? "on" : ""} onClick={() => setHabit(h.id, { enabled: false })}>{t("habit.off")}</button>
-                </div>
-                <label className="field"><span>{t("habit.name")}</span>
-                  <input type="text" maxLength={80} defaultValue={h.title} onBlur={(e) => e.target.value !== h.title && setHabit(h.id, { title: e.target.value.trim() })} />
-                </label>
-                <label className="field"><span>{t("habit.minVersion")}</span>
-                  <input type="text" maxLength={120} defaultValue={h.minVersion} onBlur={(e) => e.target.value !== h.minVersion && setHabit(h.id, { minVersion: e.target.value.trim() })} />
-                </label>
-
-                {(h.fields ?? []).map((fd, i) => (
-                  <div className="fields two" key={fd.key}>
-                    <label className="field"><span>{t("habit.fieldLabel")}</span>
-                      <input type="text" maxLength={40} defaultValue={fd.label} onBlur={(e) => e.target.value.trim() && e.target.value !== fd.label && setHabit(h.id, { fields: h.fields!.map((x, j) => (j === i ? { ...x, label: e.target.value.trim() } : x)) })} />
-                    </label>
-                    <label className="field"><span>{t("habit.fieldOptions")}</span>
-                      <input type="text" maxLength={200} defaultValue={fd.options.join(", ")} onBlur={(e) => {
-                        const opts = e.target.value.split(",").map((o) => o.trim()).filter(Boolean);
-                        if (opts.length && opts.join(", ") !== fd.options.join(", ")) setHabit(h.id, { fields: h.fields!.map((x, j) => (j === i ? { ...x, options: opts } : x)) });
-                      }} />
-                    </label>
-                  </div>
-                ))}
-              </div>
+              <HabitEditor habit={h} onSave={(nh) => updateSettings({ habits: settings.habits.map((x) => (x.id === h.id ? nh : x)) })}
+                onDelete={h.id.startsWith("habit-") ? () => updateSettings({ habits: settings.habits.filter((x) => x.id !== h.id) }) : undefined} />
             </details>
           ))}
         </div>
@@ -465,25 +447,29 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       {cat === "look" && (
         <>
       <section className="block">
+        <span className="sub-h">{t("settings.theme")}</span>
+        <div className="seg full" role="radiogroup" aria-label={t("settings.theme")}>
+          {(["light", "dark", "auto"] as const).map((th) => (
+            <button key={th} type="button" role="radio" aria-checked={settings.theme === th} className={settings.theme === th ? "on" : ""} onClick={() => updateSettings({ theme: th as Theme })}>{t(`settings.theme.${th}` as MessageKey)}</button>
+          ))}
+        </div>
         <span className="sub-h">{t("pal.title")}</span>
         <div className="pal-grid">
           {PALETTES.map((p) => (
             <button key={p} type="button" className={"pal" + (settings.palette === p ? " on" : "")} aria-pressed={settings.palette === p} onClick={() => updateSettings({ palette: p })}>
-              <i>{PAL_SWATCH[p].map((c) => <b key={c} style={{ background: c }} />)}</i>
+              <i className="pal-prev">
+                <em className="lt"><b style={{ background: PAL_SWATCH[p][0] }} /><b style={{ background: PAL_SWATCH[p][1] }} /></em>
+                <em className="dk" style={{ background: PAL_SWATCH[p][3] }}><b style={{ background: PAL_SWATCH[p][2] }} /></em>
+              </i>
               <span>{t(`pal.${p}` as MessageKey)}</span>
             </button>
           ))}
         </div>
-        <div className="fields two">
+        <div className="fields one">
           <label className="field"><span>{t("settings.lang")}</span>
             <select value={settings.lang} onChange={(e) => updateSettings({ lang: e.target.value as Lang })}>
               <option value="uk">Українська</option>
               <option value="en">English</option>
-            </select>
-          </label>
-          <label className="field"><span>{t("settings.theme")}</span>
-            <select value={settings.theme} onChange={(e) => updateSettings({ theme: e.target.value as Theme })}>
-              {(["auto", "light", "dark"] as const).map((th) => <option key={th} value={th}>{t(`settings.theme.${th}` as MessageKey)}</option>)}
             </select>
           </label>
         </div>

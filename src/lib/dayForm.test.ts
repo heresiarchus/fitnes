@@ -67,7 +67,7 @@ describe("habits and context in the day form", () => {
   it("saves marks, context and keeps fields the form does not edit", () => {
     const keep: DayEntry = { date: "2026-11-11", updatedAt: "x", bpEpisodes: [{ time: "03:10", sys: 150, dia: 95, pulse: 110 }], habitLog: [{ habitId: "old", status: "done" }] };
     const f = toFormState(keep, "light", null, habits);
-    f.habits.eat_before_pc = { status: "no", detail: "", reason: " пізно прийшов ", extra: { what: "інше", atPc: "" } };
+    f.habits.eat_before_pc = { status: "no", detail: "", reason: " пізно прийшов ", extra: { what: "інше", atPc: "" }, value: "" };
     f.dayType = "duty"; f.partnerHere = "no"; f.nightEpisode = "yes"; f.episodeNote = "о третій"; f.energyAm = "2"; f.energyPm = "9";
     const d = fromFormState("2026-11-11", f, now, { habits, keep, labels })!;
     expect(d.habitLog).toEqual([{ habitId: "eat_before_pc", status: "no", reasonIfNo: "пізно прийшов", extra: { what: "інше" } }, { habitId: "old", status: "done" }]);

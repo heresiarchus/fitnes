@@ -23,10 +23,10 @@ describe("buildSheets", () => {
   const p = buildSheets(days, items, DEFAULT_HABITS, new Date(u));
   it("writes days oldest first, skips deleted, leaves empty cells empty", () => {
     const t = p.sheets["Дні"];
-    expect(t.rows.map((r) => r[0])).toEqual(["2026-11-10", "2026-11-11"]);
-    const row = Object.fromEntries(t.header.map((h, i) => [h, t.rows[1][i]]));
+    expect(t.rows.map((r) => r[0])).toEqual(["2026-11-11", "2026-11-10"]);
+    const row = Object.fromEntries(t.header.map((h, i) => [h, t.rows[0][i]]));
     expect(row).toMatchObject({ weight: 136.2, weightTime: "07:40", steps: 5200, feel: 4, positive: "", partnerHere: "no", nightEpisode: "yes", walkMin: "", dayType: "" });
-    expect(t.rows[0][t.header.indexOf("noWeight")]).toBe("yes");
+    expect(t.rows[1][t.header.indexOf("noWeight")]).toBe("yes");
     expect(t.rows.every((r) => r.length === t.header.length)).toBe(true);
     expect(t.textCols).toContain(1);
   });
@@ -34,8 +34,8 @@ describe("buildSheets", () => {
     expect(p.sheets["Силова"].rows).toEqual([["2026-11-11", "chair", 1, 15, ""], ["2026-11-11", "Планка", 1, 3, 0]]);
     expect(p.sheets["Тиск"].rows).toEqual([["2026-11-11", "m1", "", 132, 84, "", ""], ["2026-11-11", "", "03:10", 150, 95, 110, "yes"]]);
     const h = p.sheets["Звички"];
-    expect(h.header).toEqual(["date", "habitId", "status", "detail", "reasonIfNo", "kind", "minutes", "what", "atPc"]);
-    expect(h.rows).toEqual([["2026-11-11", "eat_before_pc", "no", "", "пізно", "", "", "", "з упаковки"]]);
+    expect(h.header).toEqual(["date", "habitId", "status", "detail", "reasonIfNo", "kind", "minutes", "what", "atPc", "value", "unit"]);
+    expect(h.rows).toEqual([["2026-11-11", "eat_before_pc", "no", "", "пізно", "", "", "", "з упаковки", "", ""]]);
   });
   it("shares diary text only when allowed, but counts every entry", () => {
     expect(p.sheets["Щоденник"].rows.map((r) => r[2])).toEqual(["можна"]);
@@ -45,11 +45,22 @@ describe("buildSheets", () => {
     expect(JSON.stringify(p)).not.toContain("прогулявся");
     const shared: Item[] = [...items, { id: "dd-2026-11-11", kind: "diary", date: "2026-11-11", event: "прогулявся", share: true, createdAt: u, updatedAt: u }];
     const t = buildSheets(days, shared, DEFAULT_HABITS, new Date(u)).sheets["Дні"];
-    expect(t.rows[1][t.header.indexOf("positive")]).toBe("прогулявся");
+    expect(t.rows[0][t.header.indexOf("positive")]).toBe("прогулявся");
   });
   it("recognises an Apps Script web-app address", () => {
     expect(isScriptUrl(" https://script.google.com/macros/s/AKfycb_x-1/exec ")).toBe(true);
     expect(isScriptUrl("https://script.google.com/macros/s/AKfycb/dev")).toBe(false);
     expect(isScriptUrl("https://example.com/exec")).toBe(false);
+  });
+});
+
+describe("recent window and archive", () => {
+  it("keeps 90 days in Дні, older in the archive, newest first", () => {
+    const now = new Date(2026, 10, 12, 12);
+    const ds = ["2026-11-12", "2026-08-15", "2026-08-14", "2025-11-12"].map((date) => ({ date, updatedAt: "x", steps: 1 }));
+    const p = buildSheets(ds, [], [], now);
+    expect(p.sheets["Дні"].rows.map((r) => r[0])).toEqual(["2026-11-12", "2026-08-15"]);
+    expect(p.sheets["Дні-архів"].rows.map((r) => r[0])).toEqual(["2026-08-14", "2025-11-12"]);
+    expect(p.sheets["Годинник-дні"].rows[0]).toEqual(["2026-11-12", 1, "", "", "", "", "", ""]);
   });
 });

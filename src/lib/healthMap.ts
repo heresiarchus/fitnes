@@ -3,7 +3,7 @@ import { emptySamsung, type SamsungData } from "./samsung";
 
 /** Shapes returned by the health plugin (only the fields used here). */
 export interface HcAggregate { startDate: string; value: number }
-export interface HcWorkout { workoutType: string; duration: number; startDate: string }
+export interface HcWorkout { workoutType: string; duration: number; startDate: string; endDate?: string; totalDistance?: number; totalEnergyBurned?: number; sourceName?: string; platformId?: string }
 export interface HcSample { value: number; startDate: string; endDate: string; systolic?: number; diastolic?: number; sleepState?: string }
 
 const WALK = new Set(["walking", "hiking", "runningTreadmill", "wheelchairWalkPace", "stairClimbing", "stairs"]);
@@ -48,17 +48,7 @@ export function mapHealth(input: {
     if (s.systolic && s.diastolic) out.bp.push({ date: iso(d), hour: d.getHours(), time: d.getTime(), sys: Math.round(s.systolic), dia: Math.round(s.diastolic), pulse: null });
   }
   if (input.bp) out.kinds.push("bp");
-  for (const s of input.sleep ?? []) {
-    if (s.sleepState === "awake" || s.sleepState === "inBed" || !(s.value > 0)) continue;
-    const start = new Date(s.startDate), end = new Date(s.endDate);
-    const date = iso(end); // a night belongs to the day you woke up
-    const cur = out.sleep[date];
-    out.sleep[date] = {
-      minutes: (cur?.minutes ?? 0) + s.value,
-      start: cur?.start && cur.start < hm(start) && iso(start) === date ? cur.start : cur?.start ?? hm(start),
-      end: cur?.end && cur.end > hm(end) ? cur.end : hm(end),
-    };
-  }
+  Object.assign(out.sleep, sleepByDay(input.sleep ?? []));
   for (const s of input.restingHr ?? []) {
     if (s.value > 0) out.restingHr[iso(new Date(s.startDate))] = Math.round(s.value);
   }
@@ -106,4 +96,62 @@ export function samsungSteps(records: StepRecord[]): number | null {
     }
   }
   return Math.round(total + cur.v);
+}
+
+export interface SleepDay { minutes: number; start: string; end: string; /** Daytime sleep on the same day, minutes. */ napMin: number }
+
+/**
+ * Night sleep per wake-up date, kept apart from daytime naps.
+ * Sleep records closer than 45 minutes form one session. A day's main sleep is its
+ * longest session that ends before 15:00 (or simply the longest one); other sessions
+ * ending that day count as naps. Awake and in-bed stages are not sleep.
+ */
+export function sleepByDay(samples: HcSample[]): Record<string, SleepDay> {
+  const parts = samples
+    .filter((s) => s.sleepState !== "awake" && s.sleepState !== "inBed" && s.value > 0)
+    .map((s) => ({ s: Date.parse(s.startDate), e: Date.parse(s.endDate), m: s.value }))
+    .sort((a, b) => a.s - b.s);
+  const sessions: { s: number; e: number; m: number }[] = [];
+  for (const p of parts) {
+    const last = sessions[sessions.length - 1];
+    if (last && p.s - last.e <= 45 * 60000) { last.e = Math.max(last.e, p.e); last.m += p.m; }
+    else sessions.push({ ...p });
+  }
+  const byDay = new Map<string, typeof sessions>();
+  for (const x of sessions) {
+    const d = iso(new Date(x.e));
+    byDay.set(d, [...(byDay.get(d) ?? []), x]);
+  }
+  const out: Record<string, SleepDay> = {};
+  for (const [date, list] of byDay) {
+    const night = list.filter((x) => new Date(x.e).getHours() < 15);
+    const main = (night.length ? night : list).reduce((a, b) => (b.m > a.m ? b : a));
+    out[date] = {
+      minutes: Math.round(main.m), start: hm(new Date(main.s)), end: hm(new Date(main.e)),
+      napMin: Math.round(list.filter((x) => x !== main).reduce((a, b) => a + b.m, 0)),
+    };
+  }
+  return out;
+}
+
+/** A workout as stored by the app; pulse is filled in from heart-rate samples during it. */
+export function workoutItem(w: HcWorkout, hr: number[], now = new Date()) {
+  const start = new Date(w.startDate);
+  const end = w.endDate ? new Date(w.endDate) : new Date(start.getTime() + w.duration * 1000);
+  const item = {
+    id: "wo-" + (w.platformId ?? `${w.startDate}-${w.workoutType}`),
+    kind: "workout" as const,
+    date: iso(start), type: w.workoutType, start: hm(start), end: hm(end),
+    durationMin: Math.round(w.duration / 60),
+    updatedAt: now.toISOString(),
+  } as { id: string; kind: "workout"; date: string; type: string; start: string; end: string; durationMin: number; updatedAt: string; distanceKm?: number; avgHr?: number; maxHr?: number; kcal?: number; source?: string };
+  if (w.totalDistance) item.distanceKm = Math.round(w.totalDistance / 10) / 100;
+  if (w.totalEnergyBurned) item.kcal = Math.round(w.totalEnergyBurned);
+  if (w.sourceName) item.source = w.sourceName;
+  const beats = hr.filter((v) => v > 30 && v < 230);
+  if (beats.length) {
+    item.avgHr = Math.round(beats.reduce((a, b) => a + b, 0) / beats.length);
+    item.maxHr = Math.round(Math.max(...beats));
+  }
+  return item;
 }
