@@ -73,7 +73,7 @@ function Shell() {
           </NavLink>
         ))}
       </nav>
-      {!isNative && <PwaPrompt />}
+      <PwaPrompt />
     </>
   );
 }
