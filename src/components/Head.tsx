@@ -10,7 +10,7 @@ interface Props {
   sub?: ReactNode;
   /** Extra content on the right side of the heading row. */
   right?: ReactNode;
-  as?: "h2" | "legend" | "label";
+  as?: "h1" | "h2" | "legend" | "label";
 }
 
 /** Heading with optional help text that stays hidden until asked for. */
@@ -46,7 +46,7 @@ export function Head({ title, help, helpLabel, right, sub, as = "h2" }: Props) {
   return (
     <>
       <div className="head-row">
-        <span className="head-line"><h2>{title}</h2>{!helpLabel && btn}</span>
+        <span className="head-line">{as === "h1" ? <h1>{title}</h1> : <h2>{title}</h2>}{!helpLabel && btn}</span>
         {right}
       </div>
       {sub && <small className="head-sub">{sub}</small>}

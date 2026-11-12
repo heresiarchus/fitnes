@@ -68,12 +68,12 @@ export function Reports({ days, settings }: { days: DaysMap; settings: Settings 
       </section>
 
       <section className="block">
-        <Head title={t("chart.weightPeriod")} sub={t("chart.weightLegend")} />
+        <Head title={t("chart.weightPeriod")} help={t("chart.weightLegend")} />
         <WeightChart days={days} dates={dates} />
       </section>
 
       <section className="block">
-        <Head title={t("chart.steps")} sub={settings.stepGoal != null ? t("chart.stepsLegend") : undefined} />
+        <Head title={t("chart.steps")} help={settings.stepGoal != null ? t("chart.stepsLegend") : undefined} />
         <StepsChart days={days} dates={dates} goal={settings.stepGoal} />
       </section>
 

@@ -17,7 +17,7 @@ const ICONS: Record<string, string> = {
   log: "M12 5v14M5 12h14",
   calendar: "M4 6h16v15H4zM4 10h16M8 3v4M16 3v4",
   diary: "M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2zM9 9h6M9 13h6",
-  more: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1",
+  settings: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1",
 };
 
 const TABS = [
@@ -25,7 +25,7 @@ const TABS = [
   { to: "/log", key: "log" },
   { to: "/diary", key: "diary" },
   { to: "/history", key: "calendar" },
-  { to: "/settings", key: "more" },
+  { to: "/settings", key: "settings" },
 ];
 
 function Shell() {
@@ -62,6 +62,7 @@ function Shell() {
             <Route path="/history" element={<CalendarPage days={days} settings={settings} />} />
             <Route path="/reports" element={<Reports days={days} settings={settings} />} />
             <Route path="/settings" element={<SettingsPage days={days} settings={settings} />} />
+            <Route path="/settings/:cat" element={<SettingsPage days={days} settings={settings} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         )}

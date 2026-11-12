@@ -18,7 +18,7 @@ export function HabitMarker({ habit, row, onChange, note }: Props) {
   const did = row.status === "done" || row.status === "min";
   return (
     <div className={"habit" + (row.status ? " marked s-" + row.status : "")}>
-      <Head as="label" title={<b className="habit-title">{habit.title}</b>} sub={t("habit.min", { min: habit.minVersion })} />
+      <Head as="label" title={<b className="habit-title">{habit.title}</b>} help={t("habit.min", { min: habit.minVersion })} />
       <div className="seg full" role="radiogroup" aria-label={habit.title}>
         {HABIT_STATUSES.map((s) => (
           <button key={s} type="button" role="radio" aria-checked={row.status === s} className={row.status === s ? "on" : ""}

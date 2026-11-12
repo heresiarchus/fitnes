@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Head } from "../components/Head";
 import { Stepper } from "../components/Stepper";
 import { SyncBadge } from "../components/SyncBadge";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import { SettingsMenu } from "./SettingsMenu";
 import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useHealthState, useSheetsConfig, useSyncConfig } from "../db";
 import { parseHistory } from "../lib/history";
 import { connectHealth, diagnoseHealth, disconnectHealth, HISTORY_DAYS, openHealthSettings, pullHealth, todaySteps, type TypeReport } from "../health";
@@ -18,7 +19,7 @@ import { applySamsung, emptySamsung, parseSamsungFile } from "../lib/samsung";
 import { syncNow } from "../sync/engine";
 import { checkRepo, SyncError } from "../sync/github";
 import type { DaysMap, Habit, Lang, Phase, Settings, Theme } from "../lib/types";
-import { fromWatch, PALETTES, type Palette, REMINDER_KINDS, SOURCE_KEYS } from "../lib/types";
+import { fromWatch, PALETTES, type Palette, type ReminderKind, SOURCE_KEYS } from "../lib/types";
 
 const PAL_SWATCH: Record<Palette, string[]> = {
   mint: ["#e9edee", "#9aa6a3", "#0f766e", "#5eead4"],
@@ -31,8 +32,14 @@ import { checkForUpdate } from "../components/PwaPrompt";
 
 type Status = { text: string; kind?: "ok" | "err" };
 
+/** Explanations that belong to a whole settings category, shown behind "?" next to its title. */
+const CAT_HELP: Record<string, MessageKey> = {
+  reminders: "remind.how", sources: "src.intro", habits: "habit.manageHelp", data: "settings.dataHint",
+};
+
 export function SettingsPage({ days, settings }: { days: DaysMap; settings: Settings }) {
   const { t } = useI18n();
+  const { cat } = useParams();
   const [status, setStatus] = useState<Status>({ text: "" });
   const [goal, setGoal] = useState(settings.stepGoal == null ? "" : String(settings.stepGoal));
   const fileRef = useRef<HTMLInputElement>(null);
@@ -45,7 +52,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const [syncMsg, setSyncMsg] = useState<Status>({ text: "" });
   const [notifOk, setNotifOk] = useState(true);
   useEffect(() => { if (isNative) void notificationsAllowed().then(setNotifOk); }, []);
-  const setReminder = (k: (typeof REMINDER_KINDS)[number], patch: Partial<{ on: boolean; time: string }>) =>
+  const setReminder = (k: ReminderKind, patch: Partial<{ on: boolean; time: string; until: string; every: number }>) =>
     updateSettings({ reminders: { ...settings.reminders, [k]: { ...settings.reminders[k], ...patch } } });
   const count = Object.keys(days).length;
 
@@ -203,13 +210,16 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
     await syncNow();
   }
 
+  if (!cat) return <SettingsMenu settings={settings} syncOn={!!syncCfg} sheetsOn={!!sheets} />;
+  const catTitle = t(`cat.${cat}` as MessageKey);
   return (
     <>
       <header className="page-head">
-        <h1>{t("nav.more")}</h1>
-        <Link className="btn block" to="/reports">{t("more.reports")} →</Link>
+        <Link className="back" to="/settings">‹ {t("nav.settings")}</Link>
+        <Head as="h1" title={catTitle} help={CAT_HELP[cat] ? t(CAT_HELP[cat]) : undefined} />
       </header>
-
+      {cat === "connect" && (
+        <>
       <section className="block">
         <Head title={t("sync.title")} />
         <SyncBadge detailed />
@@ -233,7 +243,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
             )} />
             <div className="fields one">
               <div className="field">
-                <Head as="label" title={t("sync.code")} sub={t("sync.codeSub")} />
+                <Head as="label" title={t("sync.code")} help={t("sync.codeHelp")} />
                 <input type="password" autoComplete="off" aria-label={t("sync.code")} placeholder={t("sync.codePh")} value={token} onChange={(e) => setToken(e.target.value)} />
               </div>
               {pair ? <span className="status ok">{t("sync.repoFromCode", { repo: pair.repo })}</span> : (
@@ -249,121 +259,8 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         )}
         {syncMsg.text && <p className={"status " + (syncMsg.kind ?? "")} role="status">{syncMsg.text}</p>}
       </section>
-
       <section className="block">
-        <Head title={t("sheets.title")} sub={t("sheets.sub")} />
-        <span className={"status" + (sheets?.lastError ? " err" : sheets?.lastSentAt ? " ok" : "")} role="status">
-          {!sheets ? t("sheets.state.off") : sheets.lastError ? t("sheets.state.error", { e: sheets.lastError }) : sheetTime ? t("sheets.state.sent", { t: sheetTime }) : t("sheets.state.never")}
-        </span>
-        {sheets ? (
-          <div className="actions">
-            <button type="button" className="danger" onClick={() => { void setSheetsConfig(null); setSheetMsg({ text: "" }); }}>{t("sheets.disconnect")}</button>
-          </div>
-        ) : (
-          <>
-            <Head as="label" title={null} helpLabel={t("sheets.how")} help={(
-              <ol className="steps-list">
-                <li>{t("sheets.step1")}</li>
-                <li>{t("sheets.step2")}</li>
-                <li>{t("sheets.step3")}</li>
-                <li>{t("sheets.step4")}</li>
-              </ol>
-            )} />
-            <div className="actions"><button type="button" onClick={copyScript}>{scriptCopied ? t("reports.copied") : t("sheets.copyScript")}</button></div>
-            <label className="field"><span>{t("sheets.url")}</span>
-              <input type="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="https://script.google.com/macros/s/…/exec" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} />
-            </label>
-            <div className="actions"><button type="button" className="primary" onClick={connectSheets} disabled={!sheetUrl.trim()}>{t("sheets.connect")}</button></div>
-          </>
-        )}
-        {sheetMsg.text && <span className={"status " + (sheetMsg.kind ?? "")} role="status">{sheetMsg.text}</span>}
-      </section>
-
-      <section className="block">
-        <Head title={t("habit.manage")} />
-        <div className="ex-list">
-          {settings.habits.map((h) => (
-            <details className="ex-card" key={h.id}>
-              <summary>
-                <span className="ex-name"><b>{h.title || t("habit.name")}</b></span>
-                <span className={"ex-sum" + (h.enabled ? " set" : "")}>{t(h.enabled ? "habit.on" : "habit.off")}</span>
-              </summary>
-              <div className="habit-edit">
-                <div className="seg full" role="radiogroup" aria-label={h.title}>
-                  <button type="button" role="radio" aria-checked={h.enabled} className={h.enabled ? "on" : ""} onClick={() => setHabit(h.id, { enabled: true, activeFrom: h.activeFrom ?? new Date().toISOString().slice(0, 10) })}>{t("habit.on")}</button>
-                  <button type="button" role="radio" aria-checked={!h.enabled} className={!h.enabled ? "on" : ""} onClick={() => setHabit(h.id, { enabled: false })}>{t("habit.off")}</button>
-                </div>
-                <label className="field"><span>{t("habit.name")}</span>
-                  <input type="text" maxLength={80} defaultValue={h.title} onBlur={(e) => e.target.value !== h.title && setHabit(h.id, { title: e.target.value.trim() })} />
-                </label>
-                <label className="field"><span>{t("habit.minVersion")}</span>
-                  <input type="text" maxLength={120} defaultValue={h.minVersion} onBlur={(e) => e.target.value !== h.minVersion && setHabit(h.id, { minVersion: e.target.value.trim() })} />
-                </label>
-                <div className="fields two">
-                  <label className="field"><span>{t("habit.remind")}</span>
-                    <input type="time" value={h.remind?.from ?? ""} onChange={(e) => setHabit(h.id, { remind: e.target.value ? { from: e.target.value, until: h.remind?.until ?? "21:30", everyMin: h.remind?.everyMin ?? 25 } : null })} />
-                  </label>
-                  <label className="field"><span>{t("habit.remindUntil")}</span>
-                    <input type="time" value={h.remind?.until ?? ""} disabled={!h.remind} onChange={(e) => h.remind && e.target.value && setHabit(h.id, { remind: { ...h.remind, until: e.target.value } })} />
-                  </label>
-                </div>
-                {h.remind && <button type="button" className="link" onClick={() => setHabit(h.id, { remind: null })}>{t("habit.noRemind")}</button>}
-                {(h.fields ?? []).map((fd, i) => (
-                  <div className="fields two" key={fd.key}>
-                    <label className="field"><span>{t("habit.fieldLabel")}</span>
-                      <input type="text" maxLength={40} defaultValue={fd.label} onBlur={(e) => e.target.value.trim() && e.target.value !== fd.label && setHabit(h.id, { fields: h.fields!.map((x, j) => (j === i ? { ...x, label: e.target.value.trim() } : x)) })} />
-                    </label>
-                    <label className="field"><span>{t("habit.fieldOptions")}</span>
-                      <input type="text" maxLength={200} defaultValue={fd.options.join(", ")} onBlur={(e) => {
-                        const opts = e.target.value.split(",").map((o) => o.trim()).filter(Boolean);
-                        if (opts.length && opts.join(", ") !== fd.options.join(", ")) setHabit(h.id, { fields: h.fields!.map((x, j) => (j === i ? { ...x, options: opts } : x)) });
-                      }} />
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </details>
-          ))}
-        </div>
-        <button type="button" className="link" onClick={addHabit}>{t("habit.add")}</button>
-      </section>
-
-      <section className="block">
-        <Head title={t("remind.title")} sub={isNative ? t("remind.widgetHint") : undefined} />
-        {!isNative && (
-          <>
-            <p className="help-text">{t("remind.webOnly")}</p>
-            <a className="btn primary block" href={APK_URL}>{t("remind.getApk")}</a>
-          </>
-        )}
-        {isNative && !notifOk && (
-          <>
-            <p className="status err" style={{ margin: 0 }}>{t("remind.denied")}</p>
-            <div className="actions"><button type="button" className="primary" onClick={() => void askNotifications().then(setNotifOk)}>{t("remind.allow")}</button></div>
-          </>
-        )}
-        <div className="src-list">
-          {REMINDER_KINDS.map((k) => {
-            const r = settings.reminders[k];
-            return (
-              <div className="src-row" key={k}>
-                <span>{t(`remind.${k}` as MessageKey)}</span>
-                <div className="remind-ctl">
-                  <div className="seg full" role="radiogroup" aria-label={t(`remind.${k}` as MessageKey)}>
-                    <button type="button" role="radio" aria-checked={r.on} className={r.on ? "on" : ""} onClick={() => setReminder(k, { on: true })}>{t("remind.on")}</button>
-                    <button type="button" role="radio" aria-checked={!r.on} className={!r.on ? "on" : ""} onClick={() => setReminder(k, { on: false })}>{t("remind.off")}</button>
-                  </div>
-                  <input type="time" aria-label={t("remind.time")} value={r.time} disabled={!r.on} onChange={(e) => e.target.value && setReminder(k, { time: e.target.value })} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-
-      <section className="block">
-        <Head title={t("hc.title")} sub={t("hc.sub")} />
+        <Head title={t("hc.title")} />
         {isNative ? (
           <>
             <span className={"status" + (health?.lastError ? " err" : health?.on ? " ok" : "")} role="status">
@@ -420,9 +317,39 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </div>
         </details>
       </section>
-
       <section className="block">
-        <Head title={t("src.title")} />
+        <Head title={t("sheets.title")} help={t("sheets.help")} />
+        <span className={"status" + (sheets?.lastError ? " err" : sheets?.lastSentAt ? " ok" : "")} role="status">
+          {!sheets ? t("sheets.state.off") : sheets.lastError ? t("sheets.state.error", { e: sheets.lastError }) : sheetTime ? t("sheets.state.sent", { t: sheetTime }) : t("sheets.state.never")}
+        </span>
+        {sheets ? (
+          <div className="actions">
+            <button type="button" className="danger" onClick={() => { void setSheetsConfig(null); setSheetMsg({ text: "" }); }}>{t("sheets.disconnect")}</button>
+          </div>
+        ) : (
+          <>
+            <Head as="label" title={null} helpLabel={t("sheets.how")} help={(
+              <ol className="steps-list">
+                <li>{t("sheets.step1")}</li>
+                <li>{t("sheets.step2")}</li>
+                <li>{t("sheets.step3")}</li>
+                <li>{t("sheets.step4")}</li>
+              </ol>
+            )} />
+            <div className="actions"><button type="button" onClick={copyScript}>{scriptCopied ? t("reports.copied") : t("sheets.copyScript")}</button></div>
+            <label className="field"><span>{t("sheets.url")}</span>
+              <input type="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="https://script.google.com/macros/s/…/exec" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} />
+            </label>
+            <div className="actions"><button type="button" className="primary" onClick={connectSheets} disabled={!sheetUrl.trim()}>{t("sheets.connect")}</button></div>
+          </>
+        )}
+        {sheetMsg.text && <span className={"status " + (sheetMsg.kind ?? "")} role="status">{sheetMsg.text}</span>}
+      </section>
+        </>
+      )}
+      {cat === "sources" && (
+        <>
+      <section className="block">
         {!settings.healthLinked && <p className="help-text">{isNative ? t("hc.linkFirst") : t("hc.linkFirstWeb")}</p>}
         <div className={"src-list" + (settings.healthLinked ? "" : " locked")}>
           {SOURCE_KEYS.map((k) => (
@@ -436,7 +363,107 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           ))}
         </div>
       </section>
+        </>
+      )}
+      {cat === "reminders" && (
+        <>
+      <section className="block">
+        {!isNative && (
+          <>
+            <p className="help-text">{t("remind.webOnly")}</p>
+            <a className="btn primary block" href={APK_URL}>{t("remind.getApk")}</a>
+          </>
+        )}
+        {isNative && !notifOk && (
+          <>
+            <p className="status err" style={{ margin: 0 }}>{t("remind.denied")}</p>
+            <div className="actions"><button type="button" className="primary" onClick={() => void askNotifications().then(setNotifOk)}>{t("remind.allow")}</button></div>
+          </>
+        )}
+        {(() => {
+          const ev = settings.reminders.evening;
+          const onOff = (on: boolean, set: (v: boolean) => void, label: string) => (
+            <div className="seg full" role="radiogroup" aria-label={label}>
+              <button type="button" role="radio" aria-checked={on} className={on ? "on" : ""} onClick={() => set(true)}>{t("remind.on")}</button>
+              <button type="button" role="radio" aria-checked={!on} className={!on ? "on" : ""} onClick={() => set(false)}>{t("remind.off")}</button>
+            </div>
+          );
+          return (
+            <>
+              {isNative && <p className="status" style={{ margin: 0 }}>{t("remind.widgetHint")}</p>}
+              <span className="sub-h">{t("remind.evening")}</span>
+              {onOff(ev.on, (v) => setReminder("evening", { on: v }), t("remind.evening"))}
+              <div className="fields three">
+                <label className="field"><span>{t("remind.from")}</span>
+                  <input type="time" value={ev.time} disabled={!ev.on} onChange={(e) => e.target.value && setReminder("evening", { time: e.target.value })} />
+                </label>
+                <label className="field"><span>{t("remind.until")}</span>
+                  <input type="time" value={ev.until ?? ""} disabled={!ev.on} onChange={(e) => e.target.value && setReminder("evening", { until: e.target.value })} />
+                </label>
+                <label className="field"><span>{t("remind.every")}</span>
+                  <select value={ev.every ?? 5} disabled={!ev.on} onChange={(e) => setReminder("evening", { every: Number(e.target.value) })}>
+                    {[5, 10, 15, 30].map((m) => <option key={m} value={m}>{m} {t("common.min")}</option>)}
+                  </select>
+                </label>
+              </div>
+              <span className="sub-h">{t("remind.includeBp")}</span>
+              {onOff(settings.reminders.bp.on, (v) => setReminder("bp", { on: v }), t("remind.includeBp"))}
+              <span className="sub-h">{t("remind.review")}</span>
+              <div className="remind-ctl">
+                {onOff(settings.reminders.review.on, (v) => setReminder("review", { on: v }), t("remind.review"))}
+                <input type="time" aria-label={t("remind.time")} value={settings.reminders.review.time} disabled={!settings.reminders.review.on} onChange={(e) => e.target.value && setReminder("review", { time: e.target.value })} />
+              </div>
+            </>
+          );
+        })()}
+      </section>
+        </>
+      )}
+      {cat === "habits" && (
+        <>
+      <section className="block">
+        <div className="ex-list">
+          {settings.habits.map((h) => (
+            <details className="ex-card" key={h.id}>
+              <summary>
+                <span className="ex-name"><b>{h.title || t("habit.name")}</b></span>
+                <span className={"ex-sum" + (h.enabled ? " set" : "")}>{t(h.enabled ? "habit.on" : "habit.off")}</span>
+              </summary>
+              <div className="habit-edit">
+                <div className="seg full" role="radiogroup" aria-label={h.title}>
+                  <button type="button" role="radio" aria-checked={h.enabled} className={h.enabled ? "on" : ""} onClick={() => setHabit(h.id, { enabled: true, activeFrom: h.activeFrom ?? new Date().toISOString().slice(0, 10) })}>{t("habit.on")}</button>
+                  <button type="button" role="radio" aria-checked={!h.enabled} className={!h.enabled ? "on" : ""} onClick={() => setHabit(h.id, { enabled: false })}>{t("habit.off")}</button>
+                </div>
+                <label className="field"><span>{t("habit.name")}</span>
+                  <input type="text" maxLength={80} defaultValue={h.title} onBlur={(e) => e.target.value !== h.title && setHabit(h.id, { title: e.target.value.trim() })} />
+                </label>
+                <label className="field"><span>{t("habit.minVersion")}</span>
+                  <input type="text" maxLength={120} defaultValue={h.minVersion} onBlur={(e) => e.target.value !== h.minVersion && setHabit(h.id, { minVersion: e.target.value.trim() })} />
+                </label>
 
+                {(h.fields ?? []).map((fd, i) => (
+                  <div className="fields two" key={fd.key}>
+                    <label className="field"><span>{t("habit.fieldLabel")}</span>
+                      <input type="text" maxLength={40} defaultValue={fd.label} onBlur={(e) => e.target.value.trim() && e.target.value !== fd.label && setHabit(h.id, { fields: h.fields!.map((x, j) => (j === i ? { ...x, label: e.target.value.trim() } : x)) })} />
+                    </label>
+                    <label className="field"><span>{t("habit.fieldOptions")}</span>
+                      <input type="text" maxLength={200} defaultValue={fd.options.join(", ")} onBlur={(e) => {
+                        const opts = e.target.value.split(",").map((o) => o.trim()).filter(Boolean);
+                        if (opts.length && opts.join(", ") !== fd.options.join(", ")) setHabit(h.id, { fields: h.fields!.map((x, j) => (j === i ? { ...x, options: opts } : x)) });
+                      }} />
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
+        <button type="button" className="link" onClick={addHabit}>{t("habit.add")}</button>
+      </section>
+        </>
+      )}
+      {cat === "look" && (
+        <>
       <section className="block">
         <span className="sub-h">{t("pal.title")}</span>
         <div className="pal-grid">
@@ -467,9 +494,11 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </div>
         </div>
       </section>
-
+        </>
+      )}
+      {cat === "program" && (
+        <>
       <section className="block">
-        <Head title={t("settings.program")} />
         <div className="fields">
           <label className="field"><span>{t("phase.label")}</span>
             <select value={settings.phase} onChange={(e) => updateSettings({ phase: e.target.value as Phase })}>
@@ -490,9 +519,12 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </div>
         </div>
       </section>
-
+        </>
+      )}
+      {cat === "data" && (
+        <>
       <section className="block">
-        <Head title={t("settings.data")} sub={t("settings.dataHint")} right={<span className="status num">{t("settings.count", { n: count })}</span>} />
+        <span className="status num">{t("settings.count", { n: count })}</span>
         <div className="actions">
           <button type="button" onClick={exportJson}>{t("settings.backup")}</button>
           <button type="button" onClick={() => fileRef.current?.click()}>{t("settings.import")}</button>
@@ -503,6 +535,10 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         </div>
         {status.text && <p className={"status " + (status.kind ?? "")} role="status">{status.text}</p>}
       </section>
+        </>
+      )}
+      {cat === "about" && (
+        <>
       <section className="block">
         <Head title={t("ver.title")} right={<span className="status num">{t("ver.built", { t: built })}</span>} />
         <div className="actions">
@@ -516,6 +552,8 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           </>
         )}
       </section>
+        </>
+      )}
     </>
   );
 }

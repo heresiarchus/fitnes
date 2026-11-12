@@ -1,29 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../db";
-import { dueItems } from "./due";
+import { dueItems, eveningDay } from "./due";
 import { samsungSteps } from "./healthMap";
 
-const s = { ...DEFAULT_SETTINGS, reminders: { ...DEFAULT_SETTINGS.reminders, evening: { on: true, time: "21:00" }, bp: { on: true, time: "20:00" } } };
-const at = (h: number, m = 0) => new Date(2026, 10, 12, h, m);
+const s = DEFAULT_SETTINGS; // evening check 23:20, every 5 min until 01:00
+const at = (d: number, h: number, m = 0) => new Date(2026, 10, d, h, m);
+const kinds = (r: ReturnType<typeof dueItems>) => r?.items.map((x) => (x.kind === "habit" ? x.habit.id : x.kind));
 
-describe("reminder screen", () => {
-  it("asks nothing before the times have come", () => {
-    expect(dueItems(s, undefined, at(9)).map((x) => x.kind)).toEqual([]);
+describe("evening check", () => {
+  it("runs from 23:20 past midnight, still about the evening's day", () => {
+    expect(eveningDay(s, at(12, 21, 0))).toBeNull();
+    expect(eveningDay(s, at(12, 23, 20))).toBe("2026-11-12");
+    expect(eveningDay(s, at(13, 0, 40))).toBe("2026-11-12");
+    expect(eveningDay(s, at(13, 9, 0))).toBeNull();
   });
-  it("asks for what is missing after the evening time, including habits whose window began", () => {
-    const kinds = dueItems(s, undefined, at(21, 5)).map((x) => (x.kind === "habit" ? x.habit.id : x.kind));
-    expect(kinds).toEqual(["weight", "feel", "bp", "move_before_pc", "eat_before_pc"]);
+  it("asks for weight, rating and every unmarked habit", () => {
+    expect(dueItems(s, {}, at(12, 18))).toBeNull();
+    expect(kinds(dueItems(s, {}, at(12, 23, 25)))).toEqual(["weight", "feel", "move_before_pc", "eat_before_pc"]);
+    const pressure = { ...s, reminders: { ...s.reminders, bp: { on: true, time: "" } } };
+    expect(kinds(dueItems(pressure, {}, at(13, 0, 30)))).toContain("bp");
   });
-  it("drops each item once it is logged", () => {
-    const day = { date: "2026-11-12", updatedAt: "x", weight: 130, feel: 4, bp: { e1: { sys: 120, dia: 80, pulse: null } },
+  it("is done once everything is answered", () => {
+    const day = { date: "2026-11-12", updatedAt: "x", noWeight: true as const, feel: 4,
       habitLog: [{ habitId: "move_before_pc", status: "min" as const }, { habitId: "eat_before_pc", status: "rest" as const }] };
-    expect(dueItems(s, day, at(22))).toEqual([]);
-    expect(dueItems(s, { date: "2026-11-12", updatedAt: "x", noWeight: true }, at(21, 30)).map((x) => x.kind)).not.toContain("weight");
+    expect(dueItems(s, { "2026-11-12": day }, at(13, 0, 10))).toBeNull();
+    expect(dueItems(s, { "2026-11-12": { ...day, weight: 130, noWeight: undefined } }, at(12, 23, 30))).toBeNull();
   });
 });
 
 describe("Samsung Health step total", () => {
-  const rec = (s: string, e: string, v: number, src = "com.sec.android.app.shealth") => ({ startDate: `2026-11-12T${s}:00Z`, endDate: `2026-11-12T${e}:00Z`, value: v, sourceName: src });
+  const rec = (st: string, e: string, v: number, src = "com.sec.android.app.shealth") => ({ startDate: `2026-11-12T${st}:00Z`, endDate: `2026-11-12T${e}:00Z`, value: v, sourceName: src });
   it("sums Samsung records and ignores other apps", () => {
     expect(samsungSteps([rec("08:00", "09:00", 1200), rec("10:00", "11:00", 2300), rec("08:00", "12:00", 2054, "com.google.android.apps.fitness")])).toBe(3500);
   });

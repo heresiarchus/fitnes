@@ -26,7 +26,6 @@ export function DiaryPage() {
     <>
       <header className="page-head">
         <h1>{t("diary.title")}</h1>
-        <p className="sub">{t("diary.intro")}</p>
       </header>
 
       <Card icon="diary" title={t("diary.new")}>
@@ -41,7 +40,7 @@ export function DiaryPage() {
       </Card>
 
       {entries.length > 0 && (
-        <Card icon="data" title={t("diary.report")} sub={t("diary.reportSub")}>
+        <Card icon="data" title={t("diary.report")}>
           <div className="fields two">
             <label className="field"><span>{t("diary.from")}</span><input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
             <label className="field"><span>{t("diary.to")}</span><input type="date" value={to} max={today} onChange={(e) => e.target.value && setTo(e.target.value)} /></label>

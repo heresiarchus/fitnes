@@ -4,7 +4,8 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import type { TFn } from "./i18n";
 import { iso } from "./lib/date";
 import { fmt, fmtInt } from "./lib/format";
-import { missingToday, type PlannedReminder, planReminders } from "./lib/reminders";
+import { eveningDay, eveningMissing } from "./lib/due";
+import { EVENING_ID, type PlannedReminder, planReminders } from "./lib/reminders";
 import type { DaysMap, Lang, Settings } from "./lib/types";
 
 /** True inside the Android app; false in a browser or installed web app. */
@@ -59,46 +60,34 @@ export async function syncReminders(settings: Settings, days: DaysMap, t: TFn) {
   try {
     // Clear delivered reminders that are no longer true (the data has been logged).
     const delivered = await LocalNotifications.getDeliveredNotifications();
-    const todayDone = missingToday(days[iso(new Date())]).length === 0;
-    const stale = delivered.notifications.filter((n) => (n.id >= 5000 && n.id < 6000 && todayDone) || n.id >= 1000 && n.id < 5000);
+    const evening = eveningDay(settings, new Date()) ?? iso(new Date());
+    const done = eveningMissing(settings, days[evening], evening).length === 0;
+    // Old habit reminders (1000–4999) are no longer used; evening ones go once the evening is complete.
+    const stale = delivered.notifications.filter((n) => (n.id >= EVENING_ID && done) || (n.id >= 1000 && n.id < EVENING_ID));
     if (stale.length) await LocalNotifications.removeDeliveredNotifications({ notifications: stale });
     const pending = await LocalNotifications.getPending();
     if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
     if (!(await notificationsAllowed())) return;
-    const plan: PlannedReminder[] = planReminders(settings.reminders, days, new Date(), 14, settings.habits);
+    // Evening repeats are many, so plan only the next couple of evenings; the app replans on every open.
+    const plan: PlannedReminder[] = planReminders(settings, days, new Date(), 2);
     if (!plan.length) return;
     await LocalNotifications.schedule({
       notifications: plan.map((p) => {
-        if (p.kind === "habit" && p.habit) {
-          return {
-            id: p.id,
-            title: p.minOnly ? t("habit.remindMin") : p.habit.title,
-            body: t("habit.remindBody", { min: p.habit.minVersion }),
-            schedule: { at: p.at, allowWhileIdle: true },
-            extra: { route: "/" },
-          };
+        if (p.kind === "review") {
+          return { id: p.id, title: t("remind.review.title"), body: t("remind.review.body"), schedule: { at: p.at, allowWhileIdle: true }, extra: { route: "/" } };
         }
-        const kind = p.kind as Exclude<PlannedReminder["kind"], "habit">;
-        if (kind === "evening") {
-          // Today's text names exactly what's missing; later days get a general check.
-          const miss = iso(p.at) === iso(new Date()) ? missingToday(days[iso(p.at)]) : [];
-          return {
-            id: p.id,
-            title: t("remind.missing.title"),
-            body: miss.length ? t("remind.missing.body", { list: miss.map((m) => t(m === "weight" ? "day.left.weight" : "day.left.feel")).join(", ") }) : t("remind.missing.generic"),
-            schedule: { at: p.at, allowWhileIdle: true },
-            // Stays in the shade until the day is complete; cleared by the app, not by a swipe.
-            ongoing: true,
-            autoCancel: false,
-            extra: { route: "/log" },
-          };
-        }
+        // The text names what the evening still lacks, as of planning time.
+        const miss = eveningMissing(settings, days[p.date], p.date);
+        const names = miss.map((m) => (m.kind === "habit" ? m.habit.title : t(m.kind === "weight" ? "day.left.weight" : m.kind === "feel" ? "day.left.feel" : "day.left.bp")));
         return {
           id: p.id,
-          title: t(`remind.${kind}.title`),
-          body: t(`remind.${kind}.body`),
+          title: t("remind.missing.title"),
+          body: names.length ? t("remind.missing.body", { list: names.join(", ") }) : t("remind.missing.generic"),
           schedule: { at: p.at, allowWhileIdle: true },
-          extra: { route: kind === "bp" ? "/history" : kind === "review" ? "/" : "/log" },
+          // Stays in the shade until the evening is complete; cleared by the app, not by a swipe.
+          ongoing: true,
+          autoCancel: false,
+          extra: { route: "/" },
         };
       }),
     });

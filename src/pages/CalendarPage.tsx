@@ -98,7 +98,7 @@ export function CalendarPage({ days, settings }: { days: DaysMap; settings: Sett
                 </button>
               ))}
             </div>
-            <Head as="label" title={<span className="status">{t(`cal.mode.${mode}` as MessageKey)}</span>} sub={t(`cal.legend.${mode}` as MessageKey, mark)} />
+            <Head as="label" title={<span className="status">{t(`cal.mode.${mode}` as MessageKey)}</span>} help={t(`cal.legend.${mode}` as MessageKey, mark)} />
             {mode === "bp" && (
               <p className="status" style={{ margin: 0 }}>
                 <b>{t("cal.bpMonth")}:</b> {t("cal.morning")} <span className={"num" + (bpIsHigh(bpMonth.morning, mark) ? " high" : "")}>{bpText(bpMonth.morning)}</span>

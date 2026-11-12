@@ -1,6 +1,6 @@
+import { addDays, iso } from "./date";
 import { activeHabits, markOf } from "./habits";
-import type { DayEntry, Habit, Settings } from "./types";
-import { fromWatch } from "./types";
+import type { DayEntry, DaysMap, Habit, Settings } from "./types";
 
 export type DueItem =
   | { kind: "weight" }
@@ -8,30 +8,40 @@ export type DueItem =
   | { kind: "bp" }
   | { kind: "habit"; habit: Habit };
 
-const minutes = (hm: string | undefined) => { const m = /^(\d{1,2}):(\d{2})$/.exec(hm ?? ""); return m ? +m[1] * 60 + +m[2] : null; };
+export const hm = (s: string | undefined) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s ?? ""); return m ? +m[1] * 60 + +m[2] : null; };
+
+/** The screen stays up for yesterday's evening until early morning, then gives up. */
+const LAST_CALL = 6 * 60;
 
 /**
- * What the reminder screen should ask for right now: things whose reminder
- * time has passed today and that are still not logged. A weight that came
- * from the watch counts as logged.
+ * Which day the evening check is about right now, or null outside its time.
+ * The check starts at the evening time and runs past midnight (for 23:20–01:00,
+ * at 00:30 it is still about yesterday).
  */
-export function dueItems(s: Settings, today: DayEntry | undefined, now: Date): DueItem[] {
+export function eveningDay(s: Settings, now: Date): string | null {
+  const ev = s.reminders.evening;
+  const start = hm(ev.time);
+  if (!ev.on || start == null) return null;
   const t = now.getHours() * 60 + now.getMinutes();
+  if (t >= start) return iso(now);
+  if (t < LAST_CALL && start > LAST_CALL) return iso(addDays(now, -1));
+  return null;
+}
+
+/** Everything the evening check asks for that the day still lacks. */
+export function eveningMissing(s: Settings, day: DayEntry | undefined, date: string): DueItem[] {
   const out: DueItem[] = [];
-  const evening = minutes(s.reminders.evening.time);
-  if (s.reminders.evening.on && evening != null && t >= evening) {
-    if (today?.weight == null && !today?.noWeight) out.push({ kind: "weight" });
-    if (today?.feel == null && !today?.ok && !today?.flags?.length) out.push({ kind: "feel" });
-  }
-  const weigh = minutes(s.reminders.weigh.time);
-  if (s.reminders.weigh.on && weigh != null && t >= weigh && !out.some((x) => x.kind === "weight")
-    && today?.weight == null && !today?.noWeight && !fromWatch(s, "weight")) out.push({ kind: "weight" });
-  const bp = minutes(s.reminders.bp.time);
-  if (s.reminders.bp.on && bp != null && t >= bp && !(today?.bp?.e1 || today?.bp?.e2)) out.push({ kind: "bp" });
-  const date = today?.date ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  for (const h of activeHabits(s.habits, date)) {
-    const from = minutes(h.remind?.from);
-    if (from != null && t >= from && !markOf(today, h.id)) out.push({ kind: "habit", habit: h });
-  }
+  if (day?.weight == null && !day?.noWeight) out.push({ kind: "weight" });
+  if (day?.feel == null && !day?.ok && !day?.flags?.length) out.push({ kind: "feel" });
+  if (s.reminders.bp.on && !(day?.bp?.e1 || day?.bp?.e2)) out.push({ kind: "bp" });
+  for (const h of activeHabits(s.habits, date)) if (!markOf(day, h.id)) out.push({ kind: "habit", habit: h });
   return out;
+}
+
+/** What the reminder screen asks for right now, and for which day. */
+export function dueItems(s: Settings, days: DaysMap, now: Date): { date: string; items: DueItem[] } | null {
+  const date = eveningDay(s, now);
+  if (!date) return null;
+  const items = eveningMissing(s, days[date], date);
+  return items.length ? { date, items } : null;
 }

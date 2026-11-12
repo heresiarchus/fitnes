@@ -183,7 +183,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
         </div>
         <p className={"day-left" + (left.length ? "" : " done")}>
           {left.length ? t("day.left", { list: left.map((m) => t(m === "weight" ? "day.left.weight" : "day.left.feel")).join(", ") }) : evening || f.feel ? t("day.allDone") : t("day.morningDone")}
-          <small className={saveErr ? "err" : ""}>{saveErr || (savedAt ? t("day.saved", { t: savedAt }) : t("day.autosave"))}</small>
+          {(saveErr || savedAt) && <small className={saveErr ? "err" : ""}>{saveErr || t("day.saved", { t: savedAt! })}</small>}
         </p>
       </section>
       <SyncWarning />
@@ -333,7 +333,6 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
       )}
 
       <Card icon="moon" title={t("day.evening")} fold open={evening || !!f.feel || todayDiary.length > 0}
-        sub={!evening && !f.feel ? t("day.eveningLater") : undefined}
         status={f.feel ? okChip(`${f.feel}/5`) : evening ? todoChip(t("form.required")) : undefined}>
         <span className="sub-h">{t("form.feel")}</span>
         <ChipScale value={f.feel} onChange={(v) => set("feel", v)} values={[1, 2, 3, 4, 5]} label={t("form.feel")} clearable={false} />
@@ -343,7 +342,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
         <DiaryAdd date={date} compact />
       </Card>
 
-      <Card icon="more" title={t("day.more")} fold sub={t("day.moreSub")}>
+      <Card icon="more" title={t("day.more")} fold>
         <span className="sub-h">{t("form.body")}</span>
         {PAIN_AREAS.map((a) => (
           <div className="field" key={a}>

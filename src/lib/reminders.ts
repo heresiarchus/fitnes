@@ -1,18 +1,16 @@
 import { addDays, iso } from "./date";
-import { activeHabits, daysWithoutMark, markOf } from "./habits";
-import type { DayEntry, DaysMap, Habit, ReminderKind, Reminders } from "./types";
-import { REMINDER_KINDS } from "./types";
+import { eveningMissing, hm } from "./due";
+import type { DayEntry, DaysMap, Settings } from "./types";
 
 export interface PlannedReminder {
   id: number;
-  kind: ReminderKind | "habit";
+  kind: "evening" | "review";
   at: Date;
-  habit?: Habit;
-  /** After three days without a mark the reminder offers only the minimum. */
-  minOnly?: boolean;
+  /** The day the evening check is about (repeats after midnight still belong to it). */
+  date: string;
 }
 
-/** What the evening check would still ask for: the weight answer and the day's rating. */
+/** Kept for the home widget and older callers: weight answer and day rating. */
 export function missingToday(d: DayEntry | undefined): ("weight" | "feel")[] {
   const out: ("weight" | "feel")[] = [];
   if (d?.weight == null && !d?.noWeight) out.push("weight");
@@ -20,61 +18,42 @@ export function missingToday(d: DayEntry | undefined): ("weight" | "feel")[] {
   return out;
 }
 
-/** Whether today's entry already contains what the reminder asks for. */
-export function isDone(kind: ReminderKind, days: DaysMap, date: string): boolean {
-  const d = days[date];
-  if (kind === "review" || !d) return false;
-  if (kind === "weigh") return d.weight != null || !!d.noWeight;
-  if (kind === "evening") return missingToday(d).length === 0;
-  return !!(d.bp?.e1 || d.bp?.e2);
-}
+const atMinutes = (day: Date, minutes: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes, 0);
 
-const hm = (s: string | undefined) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s ?? ""); return m ? +m[1] * 60 + +m[2] : null; };
-const atMinutes = (day: Date, minutes: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), Math.floor(minutes / 60), minutes % 60, 0);
+/** Evening repeats use ids 5000+ so delivered ones can be cleared once that day is complete. */
+export const EVENING_ID = 5000;
+const REVIEW_ID = 300;
 
 /**
- * Reminders for the next `daysAhead` days. Skips times already in the past
- * and, for today, anything already logged. The weekly review fires on Sundays.
- * Habit reminders repeat inside their window until the habit is marked.
- * Ids are stable per kind and day offset, so a new plan replaces the old one.
+ * Notifications for the next `daysAhead` evenings. The evening check repeats from
+ * its time every `every` minutes until `until` (which may be after midnight).
+ * Evenings that are already complete get nothing. The weekly review fires on Sundays.
  */
-export function planReminders(r: Reminders, days: DaysMap, now: Date, daysAhead: number, habits: Habit[] = []): PlannedReminder[] {
+export function planReminders(s: Settings, days: DaysMap, now: Date, daysAhead: number): PlannedReminder[] {
   const out: PlannedReminder[] = [];
-  const today = iso(now);
-  REMINDER_KINDS.forEach((kind, k) => {
-    const cfg = r[kind];
-    const t = hm(cfg?.time);
-    if (!cfg?.on || t == null) return;
-    for (let i = 0; i < daysAhead; i++) {
-      const day = addDays(now, i);
-      if (kind === "review" && day.getDay() !== 0) continue;
-      if (i === 0 && isDone(kind, days, today)) continue;
-      // The evening check repeats every 30 minutes until 23:30, like a medication reminder.
-      const times = kind === "evening" ? Array.from({ length: 8 }, (_, n) => t + n * 30).filter((m) => m <= 23 * 60 + 30) : [t];
-      times.forEach((m, rep) => {
-        const at = atMinutes(day, m);
-        // Evening repeats get their own id range (5000+) so delivered ones can be cleared once the day is complete.
-        const id = kind === "evening" ? 5000 + i * 10 + rep : (k + 1) * 100 + i;
-        if (at.getTime() > now.getTime()) out.push({ id, kind, at });
-      });
-    }
-  });
-  habits.forEach((habit, h) => {
-    const from = hm(habit.remind?.from), until = hm(habit.remind?.until);
-    const every = Math.max(10, habit.remind?.everyMin ?? 0);
-    if (!habit.remind || from == null || until == null) return;
-    const minOnly = daysWithoutMark(days, habit.id, today, 3) >= 3;
-    for (let i = 0; i < Math.min(daysAhead, 7); i++) {
+  const ev = s.reminders.evening;
+  const start = hm(ev.time), end = hm(ev.until ?? ev.time);
+  const every = Math.max(1, ev.every ?? 30);
+  if (ev.on && start != null && end != null) {
+    const stop = end >= start ? end : end + 24 * 60; // crosses midnight
+    for (let i = -1; i < daysAhead; i++) {
       const day = addDays(now, i);
       const date = iso(day);
-      if (!activeHabits([habit], date).length) continue;
-      if (i === 0 && markOf(days[today], habit.id)) continue;
-      for (let t = from, rep = 0; t <= until && rep < 20; t += every, rep++) {
-        const at = atMinutes(day, t);
-        if (at.getTime() <= now.getTime()) continue;
-        out.push({ id: 1000 * (h + 1) + i * 20 + rep, kind: "habit", at, habit, minOnly });
+      if (!eveningMissing(s, days[date], date).length) continue;
+      for (let m = start, rep = 0; m <= stop && rep < 40; m += every, rep++) {
+        const at = atMinutes(day, m);
+        if (at.getTime() > now.getTime()) out.push({ id: EVENING_ID + (i + 1) * 40 + rep, kind: "evening", at, date });
       }
     }
-  });
+  }
+  const rv = s.reminders.review;
+  const rt = hm(rv.time);
+  if (rv.on && rt != null) {
+    for (let i = 0; i < Math.max(daysAhead, 7); i++) {
+      const day = addDays(now, i);
+      const at = atMinutes(day, rt);
+      if (day.getDay() === 0 && at.getTime() > now.getTime()) out.push({ id: REVIEW_ID + i, kind: "review", at, date: iso(day) });
+    }
+  }
   return out.sort((a, b) => a.at.getTime() - b.at.getTime());
 }

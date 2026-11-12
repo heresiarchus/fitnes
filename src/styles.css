@@ -504,3 +504,24 @@ details[open] > summary .chev { transform: rotate(180deg); }
 .head-sub { color: var(--muted); font-size: 0.86rem; font-weight: 500; margin-top: -8px; }
 .day-left small { display: block; font-weight: 500; font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
 .day-left small.err { color: var(--bad); }
+
+/* Settings menu */
+section.block.menu { padding: 6px; gap: 0; }
+.menu-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 10px; border-radius: 16px; color: var(--ink); text-decoration: none; }
+.menu-row + .menu-row { border-top: 1px solid var(--line); border-radius: 0; }
+.menu-row:active { background: var(--field); }
+.menu-t { display: grid; min-width: 0; }
+.menu-t b { font-weight: 700; }
+.menu-t small { color: var(--muted); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-t small.warn { color: var(--bad); font-weight: 650; }
+.menu-go { color: var(--muted); font-size: 1.5rem; line-height: 1; }
+.back { color: var(--accent-ink); font-weight: 650; text-decoration: none; justify-self: start; padding: 4px 0; }
+.fields.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fields.three input, .fields.three select { padding: 0 8px; }
+.tabbar a { font-size: 0.66rem; }
+/* The last tab ("Settings") has the longest label: give it a bit more room. */
+@media (max-width: 899px) {
+  .tabbar { grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.3fr); padding-left: 2px; padding-right: 2px; }
+}
+
+.page-head .head-row h1 { margin: 0; }

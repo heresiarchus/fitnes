@@ -29,11 +29,11 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "auto",
   palette: "mint",
   healthLinked: false,
-  remindersV: 2,
+  remindersV: 3,
   sources: { steps: true, exercise: true, weight: false, bp: false, sleep: true },
   bpMark: { sys: 135, dia: 85 },
   reminders: {
-    weigh: { on: false, time: "08:00" }, evening: { on: true, time: "21:00" },
+    weigh: { on: false, time: "08:00" }, evening: { on: true, time: "23:20", until: "01:00", every: 5 },
     bp: { on: false, time: "20:00" }, review: { on: true, time: "22:20" },
   },
   habits: DEFAULT_HABITS,
@@ -45,7 +45,9 @@ export const DEFAULT_SETTINGS: Settings = {
 export function normalizeSettings(raw: Partial<Settings> | undefined): Settings {
   const r = { ...(raw ?? {}) };
   // v2: reminders only in the evening, and only for what is still missing.
-  if (r.reminders && r.remindersV !== 2) r.reminders = { ...r.reminders, weigh: { ...r.reminders.weigh, on: false } };
+  if (r.reminders && (r.remindersV ?? 0) < 2) r.reminders = { ...r.reminders, weigh: { ...r.reminders.weigh, on: false } };
+  // v3: one evening check at 23:20, repeating every 5 minutes until 01:00; habits and pressure are part of it.
+  if (r.reminders && (r.remindersV ?? 0) < 3) r.reminders = { ...r.reminders, evening: { ...r.reminders.evening, time: "23:20", until: "01:00", every: 5 } };
   return {
     ...DEFAULT_SETTINGS, ...r,
     sources: { ...DEFAULT_SETTINGS.sources, ...(r.sources ?? {}) },
@@ -56,7 +58,7 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
       bp: { ...DEFAULT_SETTINGS.reminders.bp, ...(r.reminders?.bp ?? {}) },
       review: { ...DEFAULT_SETTINGS.reminders.review, ...(r.reminders?.review ?? {}) },
     },
-    remindersV: 2,
+    remindersV: 3,
     habits: migrateHabits(Array.isArray(r.habits) && r.habits.length ? r.habits : DEFAULT_HABITS),
   };
 }

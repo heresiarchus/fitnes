@@ -1,62 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { planReminders } from "./reminders";
-import { DEFAULT_HABITS } from "./habits";
-import type { Reminders } from "./types";
+import { DEFAULT_SETTINGS } from "../db";
+import { missingToday, planReminders } from "./reminders";
 
-const r: Reminders = { weigh: { on: true, time: "08:00" }, evening: { on: true, time: "21:00" }, bp: { on: false, time: "20:00" }, review: { on: false, time: "22:20" } };
-const u = "t";
+const s = { ...DEFAULT_SETTINGS, reminders: { ...DEFAULT_SETTINGS.reminders, review: { on: false, time: "22:20" } } };
+const hhmm = (d: Date) => `${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 
-describe("planReminders", () => {
-  it("skips past times and disabled reminders", () => {
-    const now = new Date(2026, 10, 11, 9, 30);
-    const plan = planReminders(r, {}, now, 2);
-    expect(plan.filter((p) => p.at.getMinutes() === 0).map((p) => [p.kind, p.at.getDate(), p.at.getHours()])).toEqual([["evening", 11, 21], ["evening", 11, 22], ["evening", 11, 23], ["weigh", 12, 8], ["evening", 12, 21], ["evening", 12, 22], ["evening", 12, 23]]);
-    expect(plan.filter((p) => p.kind === "evening" && p.at.getDate() === 11).map((p) => `${p.at.getHours()}:${p.at.getMinutes()}`)).toEqual(["21:0", "21:30", "22:0", "22:30", "23:0", "23:30"]);
+describe("evening notifications", () => {
+  it("repeat every 5 minutes from 23:20 until 01:00 the next night", () => {
+    const plan = planReminders(s, {}, new Date(2026, 10, 12, 12, 0), 1);
+    const times = plan.map((p) => hhmm(p.at));
+    expect(times[0]).toBe("12 23:20");
+    expect(times[1]).toBe("12 23:25");
+    expect(times[times.length - 1]).toBe("13 01:00");
+    expect(times).toHaveLength(21);
     expect(new Set(plan.map((p) => p.id)).size).toBe(plan.length);
+    expect(plan.every((p) => p.date === "2026-11-12")).toBe(true);
   });
-  it("drops today's reminder once the data is logged, keeps tomorrow's", () => {
-    const now = new Date(2026, 10, 11, 7, 0);
-    const days = { "2026-11-11": { date: "2026-11-11", updatedAt: u, noWeight: true as const, feel: 4 } };
-    const plan = planReminders(r, days, now, 2);
-    expect(plan.map((p) => [p.kind, p.at.getDate()]).filter(([, d]) => d === 11)).toEqual([]);
-    expect(plan[0]).toMatchObject({ kind: "weigh" });
+  it("after midnight continues for yesterday and stops once that day is complete", () => {
+    const now = new Date(2026, 10, 13, 0, 30);
+    expect(planReminders(s, {}, now, 1).filter((p) => p.date === "2026-11-12").map((p) => hhmm(p.at))[0]).toBe("13 00:35");
+    const done = { "2026-11-12": { date: "2026-11-12", updatedAt: "x", noWeight: true as const, feel: 3,
+      habitLog: [{ habitId: "move_before_pc", status: "done" as const }, { habitId: "eat_before_pc", status: "no" as const }] } };
+    expect(planReminders(s, done, now, 1).filter((p) => p.date === "2026-11-12")).toEqual([]);
   });
-  it("handles the pressure reminder and bad times", () => {
-    const now = new Date(2026, 10, 11, 7, 0);
-    const cfg: Reminders = { weigh: { on: true, time: "oops" }, evening: { on: false, time: "21:00" }, bp: { on: true, time: "20:15" }, review: { on: false, time: "22:20" } };
-    const days = { "2026-11-11": { date: "2026-11-11", updatedAt: u, bp: { e1: { sys: 120, dia: 80, pulse: null } } } };
-    expect(planReminders(cfg, {}, now, 1).map((p) => [p.kind, p.at.getMinutes()])).toEqual([["bp", 15]]);
-    expect(planReminders(cfg, days, now, 1)).toEqual([]);
+  it("schedules the Sunday review", () => {
+    const withReview = { ...s, reminders: { ...s.reminders, evening: { ...s.reminders.evening, on: false }, review: { on: true, time: "22:20" } } };
+    expect(planReminders(withReview, {}, new Date(2026, 10, 11, 12, 0), 7).map((p) => [p.kind, p.at.getDay(), hhmm(p.at)])).toEqual([["review", 0, "15 22:20"]]);
   });
-});
-
-describe("habit and review reminders", () => {
-  const off: Reminders = { weigh: { on: false, time: "08:00" }, evening: { on: false, time: "21:00" }, bp: { on: false, time: "20:00" }, review: { on: true, time: "22:20" } };
-  const habit = DEFAULT_HABITS[0];
-  it("repeats inside the window until the habit is marked", () => {
-    const now = new Date(2026, 10, 11, 19, 30); // Wednesday
-    const plan = planReminders({ ...off, review: { on: false, time: "22:20" } }, {}, now, 1, [habit]);
-    expect(plan.map((p) => `${p.at.getHours()}:${p.at.getMinutes()}`)).toEqual(["19:50", "20:15", "20:40", "21:5", "21:30"]);
-    expect(plan[0].minOnly).toBe(true);
-    const marked = { "2026-11-11": { date: "2026-11-11", updatedAt: u, habitLog: [{ habitId: habit.id, status: "rest" as const }] } };
-    expect(planReminders({ ...off, review: { on: false, time: "22:20" } }, marked, now, 1, [habit])).toEqual([]);
-  });
-  it("does not remind before the habit starts and offers the full version after a recent mark", () => {
-    expect(planReminders({ ...off, review: { on: false, time: "22:20" } }, {}, new Date(2026, 10, 10, 12, 0), 1, [habit])).toEqual([]);
-    const days = { "2026-11-11": { date: "2026-11-11", updatedAt: u, habitLog: [{ habitId: habit.id, status: "done" as const }] } };
-    expect(planReminders({ ...off, review: { on: false, time: "22:20" } }, days, new Date(2026, 10, 12, 12, 0), 1, [habit])[0].minOnly).toBe(false);
-  });
-  it("schedules the weekly review on Sunday only", () => {
-    const plan = planReminders(off, {}, new Date(2026, 10, 11, 12, 0), 7);
-    expect(plan.map((p) => [p.kind, p.at.getDay(), p.at.getHours(), p.at.getMinutes()])).toEqual([["review", 0, 22, 20]]);
-  });
-});
-
-describe("evening check", () => {
-  it("is skipped when the weight came from the watch and the day is rated", async () => {
-    const { missingToday } = await import("./reminders");
+  it("reports the missing basics", () => {
     expect(missingToday(undefined)).toEqual(["weight", "feel"]);
-    expect(missingToday({ date: "d", updatedAt: u, weight: 130 })).toEqual(["feel"]);
-    expect(missingToday({ date: "d", updatedAt: u, weight: 130, feel: 3 })).toEqual([]);
+    expect(missingToday({ date: "d", updatedAt: "x", weight: 130, feel: 3 })).toEqual([]);
   });
 });

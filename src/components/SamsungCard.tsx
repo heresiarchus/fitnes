@@ -31,7 +31,7 @@ export function SamsungCard({ entry, settings, onNoWeight }: { entry: DayEntry |
   }
   const updated = health?.lastPullAt ? new Date(health.lastPullAt).toTimeString().slice(0, 5) : null;
   return (
-    <Card icon="watch" title="Samsung Health" sub={t("watch.note")}>
+    <Card icon="watch" title="Samsung Health" sub={t("watch.note")} status={{ text: "SH" }}>
       <div className="sh-tiles">
         {tiles.map(([label, v]) => (
           <div className={"sh-tile" + (v == null ? " wait" : "")} key={label}><span>{label}</span><b>{v ?? wait}</b></div>

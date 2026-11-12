@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { saveDay } from "../db";
 import { useI18n } from "../i18n";
-import { iso } from "../lib/date";
+import { ddmm, iso } from "../lib/date";
 import { dueItems, type DueItem } from "../lib/due";
 import { fmt, num } from "../lib/format";
 import { withMark } from "../lib/habits";
@@ -34,9 +34,10 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
     return () => { clearInterval(id); document.removeEventListener("visibilitychange", tick); };
   }, []);
 
-  const today = iso(now);
+  const due = dueItems(settings, days, now);
+  const today = due?.date ?? iso(now);
+  const items = due?.items ?? [];
   const day: DayEntry = days[today] ?? { date: today, updatedAt: "" };
-  const items = dueItems(settings, days[today], now);
   const prevW = previousWeight(days, today);
   const [w, setW] = useState("");
   const [bp, setBp] = useState({ sys: "", dia: "", pulse: "" });
@@ -58,7 +59,7 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
         <Card key="w" icon="weight" title={t("form.weight")}>
           <WeightPicker value={value} onChange={setW} />
           <div className="pill-row">
-            <button type="button" className="primary compact" onClick={() => { const v = num(value); if (v) void save({ weight: v, weightCond: now.getHours() < 12 ? "morning" : "other", weightTime: now.toTimeString().slice(0, 5) }); }}>
+            <button type="button" className="primary compact" onClick={() => { const v = num(value); if (v) void save({ weight: v, weightCond: "other" }); }}>
               {t("due.save")} {value ? fmt(num(value), lang) : ""}
             </button>
             <button type="button" className="pill" onClick={() => void save({ noWeight: true })}>{t("form.weightRemove")}</button>
@@ -89,7 +90,7 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
     }
     const h = it.habit;
     return (
-      <Card key={h.id} icon="habits" title={h.title} sub={t("habit.min", { min: h.minVersion })}>
+      <Card key={h.id} icon="habits" title={h.title}>
         <div className="seg full" role="radiogroup" aria-label={h.title}>
           {HABIT_STATUSES.map((st: HabitStatus) => (
             <button key={st} type="button" role="radio" aria-checked={false} onClick={() => void saveDay(withMark(day, h.id, { status: st }))}>{t(`habit.status.${st}`)}</button>
@@ -104,7 +105,7 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
       <div className="due-sheet">
         <div className="due-top">
           <span className="card-ic"><Icon name="bell" /></span>
-          <div><h2 id="due-title">{t("due.title")}</h2><p>{t("due.sub", { n: items.length })}</p></div>
+          <div><h2 id="due-title">{t("due.title")}</h2><p>{today !== iso(now) ? t("due.forDay", { d: ddmm(today) }) : t("due.sub", { n: items.length })}</p></div>
         </div>
         {items.map(render)}
         <button type="button" onClick={later}>{t("due.later")}</button>

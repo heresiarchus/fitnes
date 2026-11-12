@@ -99,7 +99,8 @@ export interface Settings {
 
 export type ReminderKind = "weigh" | "evening" | "bp" | "review";
 export const REMINDER_KINDS: ReminderKind[] = ["weigh", "evening", "bp", "review"];
-export type Reminders = Record<ReminderKind, { on: boolean; time: string }>;
+export interface ReminderCfg { on: boolean; time: string; /** Evening check: last repeat (may be after midnight) and minutes between repeats. */ until?: string; every?: number }
+export type Reminders = Record<ReminderKind, ReminderCfg>;
 
 export type SourceKey = "steps" | "exercise" | "weight" | "bp" | "sleep";
 export const SOURCE_KEYS: SourceKey[] = ["steps", "exercise", "weight", "bp", "sleep"];
