@@ -5,7 +5,7 @@ import { DEFAULT_HABITS, migrateHabits } from "./lib/habits";
 import type { DayEntry, DaysMap, Item, Settings, SheetsConfig, SyncConfig } from "./lib/types";
 
 interface SettingsRow extends Settings { key: "main" }
-type MetaRow = { key: "sync"; value: SyncConfig } | { key: "sheets"; value: SheetsConfig } | { key: "health"; value: HealthState };
+type MetaRow = { key: "sync"; value: SyncConfig } | { key: "sheets"; value: SheetsConfig } | { key: "health"; value: HealthState } | { key: "migrations"; value: string[] };
 export interface HealthState { on: boolean; history?: boolean; lastPullAt?: string; lastFullAt?: string; lastError?: string; lastCount?: number }
 
 export const db = new Dexie("fitnes") as Dexie & {
@@ -191,4 +191,22 @@ export async function setHealthState(value: HealthState) {
 }
 export function useHealthState(): HealthState | null | undefined {
   return useLiveQuery(async () => ((await db.meta.get("health"))?.value as HealthState | undefined) ?? null, []);
+}
+
+/**
+ * One-time data fixes, each run once per device.
+ * pace-auto-1: walking pace used to be set to "light" automatically for watch walks;
+ * it carried no information, so it is cleared everywhere (the user sets it by hand when it matters).
+ */
+export async function runMigrations() {
+  const done = ((await db.meta.get("migrations"))?.value as string[] | undefined) ?? [];
+  if (!done.includes("pace-auto-1")) {
+    const now = new Date().toISOString();
+    const fix = (await db.days.toArray()).filter((d) => !d.deleted && d.walkIntensity === "light").map((d) => {
+      const { walkIntensity: _w, ...rest } = d;
+      return { ...rest, updatedAt: now };
+    });
+    if (fix.length) await saveDays(fix);
+    await db.meta.put({ key: "migrations", value: [...done, "pace-auto-1"] });
+  }
 }

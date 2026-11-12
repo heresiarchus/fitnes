@@ -1,16 +1,16 @@
 import { Health } from "@capgo/capacitor-health";
-import { db, getHealthState, getSettings, saveDays, setHealthState, updateSettings } from "./db";
+import { db, getHealthState, getSettings, saveDays, saveItems, setHealthState, updateSettings } from "./db";
 import { makeT, type MessageKey } from "./i18n";
 import { addDays } from "./lib/date";
-import { dayRanges, type HcAggregate, type HcSample, type HcWorkout, mapHealth, samsungSteps, type StepRecord } from "./lib/healthMap";
+import { dayRanges, type HcAggregate, type HcSample, type HcWorkout, mapHealth, samsungSteps, type StepRecord, workoutItem } from "./lib/healthMap";
 import { applySamsung } from "./lib/samsung";
 import type { DayEntry, DaysMap, Settings, SourceKey } from "./lib/types";
 import { SOURCE_KEYS } from "./lib/types";
 import { isNative } from "./native";
 
-type HType = "steps" | "workouts" | "weight" | "bloodPressure" | "sleep" | "restingHeartRate";
+type HType = "steps" | "workouts" | "weight" | "bloodPressure" | "sleep" | "restingHeartRate" | "heartRate";
 const TYPES: Record<SourceKey, HType[]> = {
-  steps: ["steps"], exercise: ["workouts"], weight: ["weight"], bp: ["bloodPressure"], sleep: ["sleep", "restingHeartRate"],
+  steps: ["steps"], exercise: ["workouts", "heartRate"], weight: ["weight"], bp: ["bloodPressure"], sleep: ["sleep", "restingHeartRate"],
 };
 const ALL: HType[] = SOURCE_KEYS.flatMap((k) => TYPES[k]);
 /** Regular pulls look a week back; a full pull covers what Health Connect allows without history access. */
@@ -147,7 +147,7 @@ async function run(daysArg?: number): Promise<number> {
     const got: Parameters<typeof mapHealth>[0] = {};
     // Each type separately: one failing type must not block the others.
     for (const type of ALL) {
-      if (!want.has(type) || !granted.has(type)) continue;
+      if (!want.has(type) || !granted.has(type) || type === "heartRate") continue; // pulse is read per workout
       try {
         const r = await readType(type, span);
         if (type === "steps") got.steps = r.steps;
@@ -165,6 +165,7 @@ async function run(daysArg?: number): Promise<number> {
     const t = makeT(settings.lang);
     const { changes } = applySamsung(days, mapHealth(got), settings.sources, (k) => t(`cardio.${k}` as MessageKey));
     await saveDays(changes);
+    if (got.workouts?.length) await saveWorkouts(got.workouts, granted.has("heartRate"), errors);
     const nowIso = new Date().toISOString();
     await setHealthState({
       on: true, history: state.history, lastPullAt: nowIso, lastCount: changes.length,
@@ -177,6 +178,26 @@ async function run(daysArg?: number): Promise<number> {
     await setHealthState({ ...state, lastError: (e as Error).message || "error" });
     return 0;
   }
+}
+
+/** Stores new or changed watch workouts, with average and peak pulse during each. */
+async function saveWorkouts(list: HcWorkout[], withHr: boolean, errors: string[]) {
+  const known = new Map((await db.items.where("kind").equals("workout").toArray()).map((i) => [i.id, i]));
+  const fresh = [];
+  for (const w of list) {
+    const base = workoutItem(w, []);
+    const old = known.get(base.id) as (typeof base) | undefined;
+    if (old && old.durationMin === base.durationMin && (old.avgHr != null || !withHr)) continue;
+    let hr: number[] = [];
+    if (withHr) {
+      try {
+        const end = w.endDate ?? new Date(Date.parse(w.startDate) + w.duration * 1000).toISOString();
+        hr = ((await Health.readSamples({ dataType: "heartRate", startDate: w.startDate, endDate: end, limit: 2000 })).samples as HcSample[]).map((x) => x.value);
+      } catch (e) { errors.push(`heartRate: ${(e as Error).message}`); }
+    }
+    fresh.push(workoutItem(w, hr));
+  }
+  await saveItems(fresh);
 }
 
 /** Pulls on start, whenever the app comes back to the screen, and every 10 minutes while open. */

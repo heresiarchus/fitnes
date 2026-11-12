@@ -66,7 +66,8 @@ describe("Samsung Health other export files", () => {
       updatedAt: "2026-11-12T00:00:00.000Z",
     });
     expect(d10.noWeight).toBeUndefined();
-    expect(r.changes.find((d) => d.date === "2026-11-11")).toMatchObject({ walkMin: 10, walkIntensity: "light" });
+    expect(r.changes.find((d) => d.date === "2026-11-11")).toMatchObject({ walkMin: 10 });
+    expect(r.changes.find((d) => d.date === "2026-11-11")!.walkIntensity).toBeUndefined();
     expect(r.counts).toEqual({ steps: 0, exercise: 2, weight: 1, bp: 1 });
 
     const onlyWalk = applySamsung(existing, data, { steps: true, exercise: true, weight: false, bp: false, sleep: false }, (k) => k);

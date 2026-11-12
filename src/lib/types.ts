@@ -6,8 +6,8 @@ export type BpSlot = "m1" | "m2" | "e1" | "e2";
 export type Phase = "1" | "2" | "3";
 export type Lang = "uk" | "en";
 export type Theme = "auto" | "light" | "dark";
-export type Palette = "mint" | "steel" | "sand" | "graphite";
-export const PALETTES: Palette[] = ["mint", "steel", "sand", "graphite"];
+export type Palette = "mint" | "steel" | "sand" | "graphite" | "gold" | "lavender" | "forest" | "ocean" | "rose" | "coral" | "olive" | "indigo";
+export const PALETTES: Palette[] = ["mint", "gold", "steel", "sand", "lavender", "forest", "ocean", "rose", "coral", "olive", "indigo", "graphite"];
 
 export interface StrengthItem {
   /** Preset exercise id; absent for custom exercises. */
@@ -54,6 +54,8 @@ export interface DayEntry {
   sleepMin?: number;
   sleepStart?: string;
   sleepEnd?: string;
+  /** Daytime sleep, minutes (kept apart from the night). */
+  napMin?: number;
   restingHr?: number;
   /** How the day felt overall, 1 (bad) – 5 (great). */
   feel?: number;
@@ -154,11 +156,34 @@ export interface Habit {
   fields?: HabitField[];
   /** "movement": marked done automatically when a walk or strength session is logged. */
   autoFrom?: "movement";
+  /** How the answer is given; absent = the four statuses. */
+  measure?: HabitMeasure;
+}
+
+/**
+ * Answer types from the habit builder:
+ * status — done / minimum / rest / no; yesno — two buttons; count — − / + stepper;
+ * slider; drum — scroll wheel; scale — 1…N buttons; choice — one of the user's options.
+ */
+export type MeasureType = "status" | "yesno" | "count" | "slider" | "drum" | "scale" | "choice";
+export const MEASURE_TYPES: MeasureType[] = ["status", "yesno", "count", "slider", "drum", "scale", "choice"];
+export interface HabitMeasure {
+  type: MeasureType;
+  /** What is counted: раз, хв, км, склянок… */
+  unit?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: string[];
+  /** For numbers: at or above → done, above zero → minimum. */
+  target?: number;
 }
 
 export interface HabitMark {
   habitId: string;
   status: HabitStatus;
+  /** The answer itself for habits with a measure (number, scale point or chosen option). */
+  value?: number | string;
   detail?: string;
   reasonIfNo?: string;
   extra?: Record<string, string>;
@@ -169,7 +194,12 @@ interface ItemBase { id: string; updatedAt: string; deleted?: true }
 export interface TaskItem extends ItemBase { kind: "task"; title: string; dueDate?: string; doneDate?: string; note?: string }
 export interface DiaryItem extends ItemBase { kind: "diary"; date: string; event: string; /** How good it was, 0–10. */ rating?: number; feeling?: string; tag?: string; share: boolean; createdAt: string }
 export interface MonthItem extends ItemBase { kind: "hmonth"; month: string; tracker: string; runKm: number; walkKm: number; bikeKm: number; runs: number }
-export type Item = TaskItem | DiaryItem | MonthItem;
+/** One workout from the watch, stored as-is so it can be listed and reported. */
+export interface WorkoutItem extends ItemBase {
+  kind: "workout"; date: string; type: string; start: string; end: string; durationMin: number;
+  distanceKm?: number; avgHr?: number; maxHr?: number; kcal?: number; source?: string;
+}
+export type Item = TaskItem | DiaryItem | MonthItem | WorkoutItem;
 
 export const DIARY_TAGS = ["move", "food", "work", "study", "people", "other"] as const;
 

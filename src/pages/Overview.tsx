@@ -5,6 +5,7 @@ import { StatGrid } from "../components/StatGrid";
 import { StepsChart } from "../components/StepsChart";
 import { WeightChart } from "../components/WeightChart";
 import { HabitsToday } from "../components/HabitsToday";
+import { QuestionsCard } from "../components/QuestionsCard";
 import { Head } from "../components/Head";
 import { TasksCard } from "../components/TasksCard";
 import { PeriodNav } from "../components/PeriodNav";
@@ -46,6 +47,7 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
         <Link className="btn block" to="/log">{td ? t("today.more") : t("today.fill")}</Link>
       </section>
 
+      <QuestionsCard />
       <HabitsToday days={days} settings={settings} />
       <TasksCard />
 

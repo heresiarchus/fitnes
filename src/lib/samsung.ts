@@ -89,7 +89,7 @@ export interface SamsungBp { date: string; hour: number; time: number; sys: numb
 export interface SamsungData {
   steps: Record<string, number>;
   /** Night sleep by wake-up date and resting pulse by date (from Health Connect only). */
-  sleep?: Record<string, { minutes: number; start?: string; end?: string }>;
+  sleep?: Record<string, { minutes: number; start?: string; end?: string; napMin?: number }>;
   restingHr?: Record<string, number>;
   exercise: SamsungExercise[];
   weight: SamsungWeight[];
@@ -207,7 +207,7 @@ export function applySamsung(
       const d = get(date);
       const walk = Math.round(a.walk), cardio = Math.round(a.cardio);
       let ch = false;
-      if (walk > 0 && d.walkMin !== walk) { d.walkMin = walk; d.walkIntensity ??= "light"; ch = true; }
+      if (walk > 0 && d.walkMin !== walk) { d.walkMin = walk; ch = true; } // pace stays empty unless the user chose it
       if (cardio > 0 && d.cardioMin !== cardio) {
         d.cardioMin = cardio;
         const names = [...a.kinds].filter((k) => k !== "other").map(cardioName);
@@ -247,8 +247,10 @@ export function applySamsung(
     for (const [date, v] of Object.entries(data.sleep ?? {})) {
       const d = get(date);
       const minutes = Math.round(v.minutes);
-      if (minutes > 0 && (d.sleepMin !== minutes || d.sleepStart !== v.start || d.sleepEnd !== v.end)) {
+      const nap = Math.round(v.napMin ?? 0);
+      if (minutes > 0 && (d.sleepMin !== minutes || d.sleepStart !== v.start || d.sleepEnd !== v.end || (d.napMin ?? 0) !== nap)) {
         d.sleepMin = minutes;
+        if (nap > 0) d.napMin = nap; else delete d.napMin;
         if (v.start) d.sleepStart = v.start;
         if (v.end) d.sleepEnd = v.end;
         next.set(date, d);

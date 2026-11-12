@@ -1,12 +1,12 @@
 import { num } from "./format";
-import { movementDetail } from "./habits";
-import type { BpSlot, DayEntry, DayType, Flag, Habit, HabitStatus, PainArea, SourceKey, StrengthItem, WalkIntensity, WeightCond } from "./types";
+import { movementDetail, statusFromValue } from "./habits";
+import type { BpSlot, DayEntry, DayType, Flag, Habit, HabitMark, HabitStatus, PainArea, SourceKey, StrengthItem, WalkIntensity, WeightCond } from "./types";
 import { BP_SLOTS, EXERCISES, FLAGS, PAIN_AREAS } from "./types";
 
 export interface SetRow { sets: string; reps: string; kg: string }
 export interface CustomRow extends SetRow { key: number; name: string }
 export interface BpRow { sys: string; dia: string; pulse: string }
-export interface HabitRow { status: HabitStatus | ""; detail: string; reason: string; extra: Record<string, string> }
+export interface HabitRow { status: HabitStatus | ""; detail: string; reason: string; extra: Record<string, string>; value: string }
 const yn = (v: boolean | undefined): "" | "yes" | "no" => (v == null ? "" : v ? "yes" : "no");
 
 /** Raw (string) state of the day form, mirrors the inputs one to one. */
@@ -32,7 +32,8 @@ export interface DayFormState {
   weightCond: WeightCond;
   steps: string;
   walk: string;
-  walkInt: WalkIntensity;
+  /** Empty until the user picks a pace. */
+  walkInt: WalkIntensity | "";
   cardio: string;
   cardioWhat: string;
   ex: Record<string, SetRow>;
@@ -46,11 +47,11 @@ export interface DayFormState {
 const s = (v: number | null | undefined) => (v == null ? "" : String(v));
 const emptySet = (): SetRow => ({ sets: "", reps: "", kg: "" });
 
-export function toFormState(d: DayEntry | undefined, defaultWalk: WalkIntensity, prevWeight: number | null = null, habits: Habit[] = []): DayFormState {
+export function toFormState(d: DayEntry | undefined, _defaultWalk: WalkIntensity, prevWeight: number | null = null, habits: Habit[] = []): DayFormState {
   const habitRows: Record<string, HabitRow> = {};
   for (const h of habits) {
     const m = d?.habitLog?.find((x) => x.habitId === h.id);
-    habitRows[h.id] = { status: m?.status ?? "", detail: m?.detail ?? "", reason: m?.reasonIfNo ?? "", extra: { ...(m?.extra ?? {}) } };
+    habitRows[h.id] = rowFromMark(m);
   }
   const ex: Record<string, SetRow> = {};
   for (const id of EXERCISES) ex[id] = emptySet();
@@ -84,7 +85,7 @@ export function toFormState(d: DayEntry | undefined, defaultWalk: WalkIntensity,
     weightCond: d?.weightCond ?? "morning",
     steps: s(d?.steps),
     walk: s(d?.walkMin),
-    walkInt: d?.walkIntensity ?? defaultWalk,
+    walkInt: d?.walkIntensity ?? "",
     cardio: s(d?.cardioMin),
     cardioWhat: d?.cardioWhat ?? "",
     ex,
@@ -128,7 +129,7 @@ export function fromFormState(date: string, f: DayFormState, now = new Date(), o
   const steps = num(f.steps);
   if (steps != null && steps >= 0) out.steps = Math.round(steps);
   const walk = num(f.walk);
-  if (walk != null && walk >= 0) { out.walkMin = Math.round(walk); out.walkIntensity = f.walkInt; }
+  if (walk != null && walk >= 0) { out.walkMin = Math.round(walk); if (f.walkInt) out.walkIntensity = f.walkInt; }
   const cardio = num(f.cardio);
   if (cardio != null && cardio >= 0) {
     out.cardioMin = Math.round(cardio);
@@ -197,14 +198,9 @@ export function fromFormState(date: string, f: DayFormState, now = new Date(), o
   const habitLog: NonNullable<DayEntry["habitLog"]> = [];
   for (const h of opt.habits ?? []) {
     const row = f.habits[h.id];
-    if (row?.status) {
-      const mark: NonNullable<DayEntry["habitLog"]>[number] = { habitId: h.id, status: row.status };
-      const detail = row.detail.trim(), reason = row.reason.trim();
-      if (detail) mark.detail = detail;
-      if (row.status === "no" && reason) mark.reasonIfNo = reason;
-      const extra = Object.fromEntries(Object.entries(row.extra).filter(([, v]) => v));
-      if (Object.keys(extra).length) mark.extra = extra;
-      habitLog.push(mark);
+    const mark = row ? markFromRow(h, row) : null;
+    if (mark) {
+      habitLog.push({ habitId: h.id, ...mark });
     } else if (h.autoFrom === "movement" && opt.labels) {
       // Movement logged the usual way answers the habit; don't ask twice.
       const detail = movementDetail(out, opt.labels);
@@ -231,4 +227,34 @@ export function missingRequired(f: DayFormState, weightFromWatch = false): Missi
   // Answered by the 1–5 rating; older entries answered it with "all good" or a warning sign.
   if (!f.feel && !f.ok && !f.flags.length) out.push("feeling");
   return out;
+}
+
+export const rowFromMark = (m: HabitMark | undefined): HabitRow => ({
+  status: m?.status ?? "", detail: m?.detail ?? "", reason: m?.reasonIfNo ?? "", extra: { ...(m?.extra ?? {}) },
+  value: m?.value == null ? "" : String(m.value),
+});
+
+/**
+ * A habit's form row as a mark, or null when unanswered. For measured habits the
+ * status follows the answer (unless the day is marked as rest).
+ */
+export function markFromRow(h: Habit, row: HabitRow): Omit<HabitMark, "habitId"> | null {
+  const measured = h.measure && h.measure.type !== "status";
+  let status = row.status;
+  let value: number | string | undefined;
+  if (measured && row.value !== "" && status !== "rest") {
+    const numeric = !["yesno", "choice"].includes(h.measure!.type);
+    value = numeric ? Number(row.value) : row.value;
+    if (numeric && !Number.isFinite(value as number)) value = undefined;
+    else status = statusFromValue(h.measure!, value!);
+  }
+  if (!status) return null;
+  const mark: Omit<HabitMark, "habitId"> = { status };
+  if (value !== undefined) mark.value = value;
+  const detail = row.detail.trim(), reason = row.reason.trim();
+  if (detail) mark.detail = detail;
+  if (status === "no" && reason) mark.reasonIfNo = reason;
+  const extra = Object.fromEntries(Object.entries(row.extra).filter(([, v]) => v));
+  if (Object.keys(extra).length) mark.extra = extra;
+  return mark;
 }

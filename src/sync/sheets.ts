@@ -55,3 +55,30 @@ export function startAutoSheets() {
   localChanges.addEventListener("change", () => { clearTimeout(timer); timer = setTimeout(() => void sendSheets(), 5000); });
   window.addEventListener("online", () => void sendSheets());
 }
+
+export interface Question { id: string; date: string; question: string }
+
+/** Questions Claude wrote into the sheet's «Питання» tab that have no answer yet. */
+export async function fetchQuestions(): Promise<Question[] | null> {
+  const cfg = await getSheetsConfig();
+  if (!cfg?.url || !navigator.onLine) return null;
+  try {
+    const res = await fetch(cfg.url + "?action=questions", { redirect: "follow", cache: "no-store" });
+    const j = (await res.json()) as { ok?: boolean; questions?: Question[] };
+    return j.ok && Array.isArray(j.questions) ? j.questions : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function sendAnswer(id: string, answer: string): Promise<boolean> {
+  const cfg = await getSheetsConfig();
+  if (!cfg?.url) return false;
+  const body = JSON.stringify({ format: "fitnes-answers", answers: [{ id, answer }] });
+  try {
+    const res = await fetch(cfg.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body, redirect: "follow" });
+    return !!((await res.json()) as { ok?: boolean }).ok;
+  } catch {
+    try { await fetch(cfg.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body, mode: "no-cors" }); return true; } catch { return false; }
+  }
+}

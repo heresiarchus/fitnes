@@ -1,5 +1,5 @@
 import { addDays, iso, parseIso } from "./date";
-import type { DayEntry, DaysMap, Habit, HabitMark } from "./types";
+import type { DayEntry, DaysMap, Habit, HabitMark, HabitMeasure, HabitStatus } from "./types";
 
 export const EAT_WHAT = ["гаряча страва", "бутерброд / перекус", "фрукти / йогурт", "інше"];
 export const EAT_AT_PC = ["ні", "так, порцію в тарілці", "так, з пачки"];
@@ -69,4 +69,26 @@ export function migrateHabits(habits: Habit[]): Habit[] {
     if (!h.fields?.some((f) => f.options.some((o) => /^набір [ABC]$/.test(o)))) return h;
     return { ...h, fields: h.fields.map((f) => (f.key === "what" ? { ...f, options: EAT_WHAT } : f.key === "atPc" ? { ...f, label: "Їв за комп'ютером", options: EAT_AT_PC } : f)) };
   });
+}
+
+/** Turns a measured answer into the common status, so reports and reminders treat all habits alike. */
+export function statusFromValue(m: HabitMeasure, value: number | string): HabitStatus {
+  if (m.type === "yesno") return value === "yes" ? "done" : "no";
+  if (m.type === "choice" || m.type === "scale") return "done";
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return "no";
+  if (m.target != null && m.target > 0) return n >= m.target ? "done" : "min";
+  return "done";
+}
+
+/** Sensible defaults when the user switches a habit to an answer type. */
+export function defaultMeasure(type: HabitMeasure["type"]): HabitMeasure {
+  switch (type) {
+    case "count": return { type, unit: "раз", min: 0, max: 100, step: 1 };
+    case "slider": return { type, unit: "хв", min: 0, max: 60, step: 5 };
+    case "drum": return { type, unit: "км", min: 0, max: 20, step: 0.5 };
+    case "scale": return { type, max: 5 };
+    case "choice": return { type, options: ["варіант 1", "варіант 2"] };
+    default: return { type };
+  }
 }

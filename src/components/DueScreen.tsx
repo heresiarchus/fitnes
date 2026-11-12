@@ -6,9 +6,10 @@ import { dueItems, type DueItem } from "../lib/due";
 import { fmt, num } from "../lib/format";
 import { withMark } from "../lib/habits";
 import { previousBp, previousWeight } from "../lib/stats";
-import type { DayEntry, DaysMap, HabitStatus, Settings } from "../lib/types";
-import { HABIT_STATUSES } from "../lib/types";
+import type { DayEntry, DaysMap, Habit, Settings } from "../lib/types";
 import { Card, Icon } from "./Card";
+import { HabitMarker } from "./HabitMarker";
+import { type HabitRow, markFromRow, rowFromMark } from "../lib/dayForm";
 import { ChipScale } from "./ChipScale";
 import { Stepper } from "./Stepper";
 import { WeightPicker } from "./WeightPicker";
@@ -88,16 +89,7 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
         </Card>
       );
     }
-    const h = it.habit;
-    return (
-      <Card key={h.id} icon="habits" title={h.title}>
-        <div className="seg full" role="radiogroup" aria-label={h.title}>
-          {HABIT_STATUSES.map((st: HabitStatus) => (
-            <button key={st} type="button" role="radio" aria-checked={false} onClick={() => void saveDay(withMark(day, h.id, { status: st }))}>{t(`habit.status.${st}`)}</button>
-          ))}
-        </div>
-      </Card>
-    );
+    return <DueHabit key={it.habit.id} habit={it.habit} day={day} />;
   };
 
   return (
@@ -111,5 +103,19 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
         <button type="button" onClick={later}>{t("due.later")}</button>
       </div>
     </div>
+  );
+}
+
+/** One habit on the reminder screen: statuses save on tap, measured answers on "Save". */
+function DueHabit({ habit, day }: { habit: Habit; day: DayEntry }) {
+  const { t } = useI18n();
+  const [row, setRow] = useState<HabitRow>(() => rowFromMark(undefined));
+  const measured = (habit.measure?.type ?? "status") !== "status";
+  const save = (r: HabitRow) => { const mk = markFromRow(habit, r); if (mk) void saveDay(withMark(day, habit.id, mk)); };
+  return (
+    <Card icon="habits" title={habit.title}>
+      <HabitMarker habit={{ ...habit, title: "" }} row={row} onChange={(r) => { setRow(r); if (!measured || r.status === "rest") save(r); }} />
+      {measured && <div className="pill-row"><button type="button" className="primary compact" disabled={row.value === ""} onClick={() => save(row)}>{t("due.save")}</button></div>}
+    </Card>
   );
 }

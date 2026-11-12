@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayRanges, mapHealth } from "./healthMap";
+import { dayRanges, mapHealth, sleepByDay, workoutItem } from "./healthMap";
 import { applySamsung } from "./samsung";
 
 const at = (y: number, m: number, d: number, h: number, min = 0) => new Date(y, m - 1, d, h, min).toISOString();
@@ -29,7 +29,7 @@ describe("Health Connect mapping", () => {
       { date: "2026-11-11", minutes: 15, walk: true, cardio: undefined },
       { date: "2026-11-11", minutes: 30, walk: false, cardio: "bike" },
     ]);
-    expect(data.sleep).toEqual({ "2026-11-11": { minutes: 400, start: "23:40", end: "06:50" } });
+    expect(data.sleep).toEqual({ "2026-11-11": { minutes: 400, start: "23:40", end: "06:50", napMin: 0 } });
     expect(data.restingHr).toEqual({ "2026-11-11": 62 });
   });
 
@@ -63,5 +63,31 @@ describe("calendar day ranges for step totals", () => {
   it("keeps whole days across a month boundary", () => {
     const r = dayRanges(new Date(2026, 11, 1, 12, 0), 2);
     expect(r.map((x) => x.date)).toEqual(["2026-11-30", "2026-12-01"]);
+  });
+});
+
+describe("night sleep apart from naps", () => {
+  const ses = (s: string, e: string, m: number) => ({ value: m, startDate: new Date(s).toISOString(), endDate: new Date(e).toISOString() });
+  it("takes the longest night session and counts a daytime nap separately", () => {
+    const r = sleepByDay([
+      ses("2025-11-15T04:10", "2025-11-15T10:40", 380),
+      ses("2025-11-15T19:16", "2025-11-15T20:31", 75),
+    ]);
+    expect(r["2025-11-15"]).toEqual({ minutes: 380, start: "04:10", end: "10:40", napMin: 75 });
+  });
+  it("joins pieces of one night split by short wake-ups", () => {
+    const r = sleepByDay([
+      ses("2025-11-13T23:40", "2025-11-14T02:00", 140),
+      ses("2025-11-14T02:20", "2025-11-14T07:00", 280),
+      { value: 20, sleepState: "awake", startDate: new Date("2025-11-14T02:00").toISOString(), endDate: new Date("2025-11-14T02:20").toISOString() },
+    ]);
+    expect(r["2025-11-14"]).toEqual({ minutes: 420, start: "23:40", end: "07:00", napMin: 0 });
+  });
+});
+
+describe("workout records", () => {
+  it("keeps type, times, distance and pulse", () => {
+    const w = workoutItem({ workoutType: "walking", duration: 1500, startDate: new Date(2026, 10, 12, 18, 5).toISOString(), endDate: new Date(2026, 10, 12, 18, 30).toISOString(), totalDistance: 2140, platformId: "abc", sourceName: "com.sec.android.app.shealth" }, [95, 110, 102, 0], new Date(0));
+    expect(w).toMatchObject({ id: "wo-abc", kind: "workout", date: "2026-11-12", type: "walking", start: "18:05", end: "18:30", durationMin: 25, distanceKm: 2.14, avgHr: 102, maxHr: 110 });
   });
 });

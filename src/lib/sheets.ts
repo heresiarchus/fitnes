@@ -1,4 +1,5 @@
-import type { DayEntry, DiaryItem, Habit, Item, MonthItem, TaskItem } from "./types";
+import { addDays, iso } from "./date";
+import type { DayEntry, DiaryItem, Habit, Item, MonthItem, TaskItem, WorkoutItem } from "./types";
 import { BP_SLOTS } from "./types";
 
 type Cell = string | number;
@@ -19,8 +20,13 @@ function table(header: string[], text: string[], rows: Cell[][]): SheetTable {
  * dates YYYY-MM-DD, times HH:MM, numbers as numbers, empty value = empty cell.
  * Diary text is included only for entries the user chose to share.
  */
+/** "Дні" keeps the last 90 days; older days go to "Дні-архів". */
+export const RECENT_DAYS = 90;
+
 export function buildSheets(days: DayEntry[], items: Item[], habits: Habit[], now = new Date()): SheetsPayload {
-  const live = days.filter((d) => !d.deleted).sort((a, b) => a.date.localeCompare(b.date));
+  // Newest first everywhere, so a reader that sees only the first rows sees the recent ones.
+  const live = days.filter((d) => !d.deleted).sort((a, b) => b.date.localeCompare(a.date));
+  const recentFrom = iso(addDays(now, -(RECENT_DAYS - 1)));
   const liveItems = items.filter((i) => !i.deleted);
 
   // The day's "good thing" is diary text: it leaves the device only if that diary entry is shared.
@@ -29,7 +35,7 @@ export function buildSheets(days: DayEntry[], items: Item[], habits: Habit[], no
     d.date, c(d.weight), c(d.weightCond), c(d.weightTime), c(d.steps), c(d.walkMin), c(d.walkIntensity), c(d.cardioMin), c(d.cardioWhat),
     c(d.pain?.foot), c(d.pain?.back), c(d.pain?.shoulder), (d.flags ?? []).join(" "), c(d.feel), sharedPositive.has(d.date) ? c(d.positive) : "", c(d.note),
     c(d.dayType), yn(d.partnerHere), yn(d.nightEpisode), c(d.episodeNote), c(d.energyAm), c(d.energyPm), d.noWeight ? "yes" : "", d.updatedAt,
-    c(d.sleepMin), c(d.sleepStart), c(d.sleepEnd), c(d.restingHr),
+    c(d.sleepMin), c(d.sleepStart), c(d.sleepEnd), c(d.restingHr), c(d.napMin),
   ]);
 
   const strength: Cell[][] = [];
@@ -43,27 +49,41 @@ export function buildSheets(days: DayEntry[], items: Item[], habits: Habit[], no
       if (v) bp.push([d.date, slot, "", c(v.sys), c(v.dia), c(v.pulse), ""]);
     }
     for (const v of d.bpEpisodes ?? []) bp.push([d.date, "", v.time, c(v.sys), c(v.dia), c(v.pulse), "yes"]);
-    for (const m of d.habitLog ?? []) habitRows.push([d.date, m.habitId, m.status, c(m.detail), c(m.reasonIfNo), ...extraKeys.map((k) => c(m.extra?.[k]))]);
+    for (const m of d.habitLog ?? []) {
+      const unit = habits.find((h) => h.id === m.habitId)?.measure?.unit;
+      habitRows.push([d.date, m.habitId, m.status, c(m.detail), c(m.reasonIfNo), ...extraKeys.map((k) => c(m.extra?.[k])), c(m.value), c(unit)]);
+    }
   }
 
-  const tasks = liveItems.filter((i): i is TaskItem => i.kind === "task").sort((a, b) => a.id.localeCompare(b.id));
-  const diary = liveItems.filter((i): i is DiaryItem => i.kind === "diary").sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
-  const months = liveItems.filter((i): i is MonthItem => i.kind === "hmonth").sort((a, b) => a.month.localeCompare(b.month));
+  const tasks = liveItems.filter((i): i is TaskItem => i.kind === "task").sort((a, b) => (b.dueDate ?? "").localeCompare(a.dueDate ?? "") || b.id.localeCompare(a.id));
+  const diary = liveItems.filter((i): i is DiaryItem => i.kind === "diary").sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  const months = liveItems.filter((i): i is MonthItem => i.kind === "hmonth").sort((a, b) => b.month.localeCompare(a.month));
+  const workouts = liveItems.filter((i): i is WorkoutItem => i.kind === "workout").sort((a, b) => b.date.localeCompare(a.date) || b.start.localeCompare(a.start));
+  const dayHeader = ["date", "weight", "weightCond", "weightTime", "steps", "walkMin", "walkIntensity", "cardioMin", "cardioWhat",
+    "painFoot", "painBack", "painShoulder", "flags", "feel", "positive", "note",
+    "dayType", "partnerHere", "nightEpisode", "episodeNote", "energyAm", "energyPm", "noWeight", "updatedAt",
+    "sleepMin", "sleepStart", "sleepEnd", "restingHr", "napMin"];
+  const dayText = ["date", "weightTime", "cardioWhat", "flags", "positive", "note", "episodeNote", "updatedAt", "sleepStart", "sleepEnd"];
   const counts = new Map<string, number>();
   for (const e of diary) counts.set(e.date, (counts.get(e.date) ?? 0) + 1);
 
   return {
     format: "fitnes-sheets", version: 1, sentAt: now.toISOString(),
     sheets: {
-      "Дні": table(
-        ["date", "weight", "weightCond", "weightTime", "steps", "walkMin", "walkIntensity", "cardioMin", "cardioWhat",
-          "painFoot", "painBack", "painShoulder", "flags", "feel", "positive", "note",
-          "dayType", "partnerHere", "nightEpisode", "episodeNote", "energyAm", "energyPm", "noWeight", "updatedAt",
-          "sleepMin", "sleepStart", "sleepEnd", "restingHr"],
-        ["date", "weightTime", "cardioWhat", "flags", "positive", "note", "episodeNote", "updatedAt", "sleepStart", "sleepEnd"], dayRows),
+      "Дні": table(dayHeader, dayText, dayRows.filter((r) => String(r[0]) >= recentFrom)),
+      "Дні-архів": table(dayHeader, dayText, dayRows.filter((r) => String(r[0]) < recentFrom)),
+      "Годинник-дні": table(["date", "stepsTotal", "sleepStart", "sleepEnd", "sleepMin", "napMin", "restingHr", "noWatch"], ["date", "sleepStart", "sleepEnd"],
+        live.map((d) => {
+          const none = d.steps == null && d.sleepMin == null && d.restingHr == null;
+          return [d.date, c(d.steps), c(d.sleepStart), c(d.sleepEnd), c(d.sleepMin), c(d.napMin), c(d.restingHr), none ? "yes" : ""];
+        })),
+      "Годинник-тренування": table(["sessionId", "date", "type", "start", "end", "durationMin", "distanceKm", "avgHr", "maxHr", "kcal", "source"], ["sessionId", "date", "type", "start", "end", "source"],
+        workouts.map((w) => [w.id, w.date, w.type, w.start, w.end, w.durationMin, c(w.distanceKm), c(w.avgHr), c(w.maxHr), c(w.kcal), c(w.source)])),
+      "Історія-вага": table(["date", "kg", "cond", "time", "origin"], ["date", "time", "origin"],
+        live.filter((d) => d.weight != null).map((d) => [d.date, d.weight!, c(d.weightCond), c(d.weightTime), c(d.weightOrigin)])),
       "Силова": table(["date", "exercise", "sets", "reps", "kg"], ["date", "exercise"], strength),
       "Тиск": table(["date", "slot", "time", "sys", "dia", "pulse", "episode"], ["date", "time"], bp),
-      "Звички": table(["date", "habitId", "status", "detail", "reasonIfNo", ...extraKeys], ["date", "detail", "reasonIfNo", ...extraKeys], habitRows),
+      "Звички": table(["date", "habitId", "status", "detail", "reasonIfNo", ...extraKeys, "value", "unit"], ["date", "detail", "reasonIfNo", ...extraKeys, "unit"], habitRows),
       "Довідник звичок": table(["id", "title", "minVersion", "enabled", "activeFrom", "activeTo"], ["id", "title", "minVersion", "activeFrom", "activeTo"],
         habits.map((h) => [h.id, h.title, h.minVersion, h.enabled ? "yes" : "no", c(h.activeFrom), c(h.activeTo)])),
       "Справи": table(["id", "title", "dueDate", "doneDate", "note", "updatedAt"], ["id", "title", "dueDate", "doneDate", "note", "updatedAt"],

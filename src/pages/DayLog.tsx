@@ -242,7 +242,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
               <ChipScale value={f.walk} onChange={(v) => set("walk", v)} values={WALK_QUICK} label={t("form.walk")} />
               <div className="seg full" role="radiogroup" aria-label={t("form.walkInt")}>
                 {(["light", "moderate"] as const).map((k) => (
-                  <button key={k} type="button" role="radio" aria-checked={f.walkInt === k} className={f.walkInt === k ? "on" : ""} onClick={() => set("walkInt", k)}>{t(`form.pace.${k}` as MessageKey)}</button>
+                  <button key={k} type="button" role="radio" aria-checked={f.walkInt === k} className={f.walkInt === k ? "on" : ""} onClick={() => set("walkInt", f.walkInt === k ? "" : k)}>{t(`form.pace.${k}` as MessageKey)}</button>
                 ))}
               </div>
               <div className="fields">

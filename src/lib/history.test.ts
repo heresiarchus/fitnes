@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysWithoutMark, withMark } from "./habits";
+import { daysWithoutMark, statusFromValue, withMark } from "./habits";
 import { monthlyWeights, parseHistory } from "./history";
 
 const now = new Date("2026-11-11T10:00:00Z");
@@ -38,5 +38,16 @@ describe("habit marks", () => {
     const days = { "2026-11-08": { date: "2026-11-08", updatedAt: "x", habitLog: [{ habitId: "a", status: "no" as const }] } };
     expect(daysWithoutMark(days, "a", "2026-11-11", 3)).toBe(2);
     expect(daysWithoutMark({}, "a", "2026-11-11", 3)).toBe(3);
+  });
+});
+
+describe("measured habits", () => {
+  it("map answers to statuses", () => {
+    expect(statusFromValue({ type: "count", target: 8 }, 8)).toBe("done");
+    expect(statusFromValue({ type: "count", target: 8 }, 3)).toBe("min");
+    expect(statusFromValue({ type: "slider" }, 0)).toBe("no");
+    expect(statusFromValue({ type: "drum" }, 2.5)).toBe("done");
+    expect(statusFromValue({ type: "yesno" }, "no")).toBe("no");
+    expect(statusFromValue({ type: "choice", options: ["a"] }, "a")).toBe("done");
   });
 });
