@@ -98,3 +98,30 @@ export function listenNativeOpens(go: (route: string) => void) {
   });
 }
 
+
+/**
+ * The Android shell itself changes rarely (widget, reminders, watch access).
+ * Returns the newer shell version when one has been published, else null.
+ */
+export async function newerShell(): Promise<string | null> {
+  if (!isNative) return null;
+  try {
+    const mine = (await CapApp.getInfo()).version;
+    const res = await fetch("https://api.github.com/repos/heresiarchus/fitnes/releases/latest", { cache: "no-store" });
+    if (!res.ok) return null;
+    const latest = String(((await res.json()) as { tag_name?: string }).tag_name ?? "").replace(/^v/, "");
+    return latest && isNewer(latest, mine) ? latest : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Compares dotted versions numerically: "0.2.10" is newer than "0.2.9". */
+export function isNewer(a: string, b: string): boolean {
+  const x = a.split(".").map(Number), y = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d !== 0) return d > 0;
+  }
+  return false;
+}

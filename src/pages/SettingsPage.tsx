@@ -18,7 +18,8 @@ import { syncNow } from "../sync/engine";
 import { checkRepo, SyncError } from "../sync/github";
 import type { DaysMap, Habit, Lang, Phase, Settings, Theme } from "../lib/types";
 import { REMINDER_KINDS, SOURCE_KEYS } from "../lib/types";
-import { APK_URL, askNotifications, isNative, notificationsAllowed } from "../native";
+import { APK_URL, askNotifications, isNative, newerShell, notificationsAllowed } from "../native";
+import { checkForUpdate } from "../components/PwaPrompt";
 
 type Status = { text: string; kind?: "ok" | "err" };
 
@@ -95,6 +96,10 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
     setSamsung({ text: parts.join(" "), kind: "ok" });
   }
 
+  const [shell, setShell] = useState<string | null>(null);
+  const [verMsg, setVerMsg] = useState("");
+  useEffect(() => { void newerShell().then(setShell); }, []);
+  const built = new Date(__BUILD_TIME__).toLocaleString(settings.lang === "uk" ? "uk-UA" : "en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   const health = useHealthState();
   const [hcMsg, setHcMsg] = useState<Status>({ text: "" });
   async function hcConnect() {
@@ -422,6 +427,19 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
           <button type="button" className="danger" onClick={clearAll} disabled={!count}>{t("settings.clear")}</button>
         </div>
         {status.text && <p className={"status " + (status.kind ?? "")} role="status">{status.text}</p>}
+      </section>
+      <section className="block">
+        <Head title={t("ver.title")} help={t("ver.help")} right={<span className="status num">{t("ver.built", { t: built })}</span>} />
+        <div className="actions">
+          <button type="button" onClick={() => { void checkForUpdate().then(() => setVerMsg(t("ver.checked"))); }}>{t("ver.check")}</button>
+        </div>
+        {verMsg && <span className="status" role="status">{verMsg}</span>}
+        {shell && (
+          <>
+            <p className="help-text">{t("ver.shell", { v: shell })}</p>
+            <a className="btn primary block" href={APK_URL}>{t("ver.shellGet")}</a>
+          </>
+        )}
       </section>
     </>
   );
