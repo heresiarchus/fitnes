@@ -6,8 +6,9 @@ import { GOAL_DEFS, goalProgress } from "./lib/goals";
 import { iso } from "./lib/date";
 import { fmt, fmtInt } from "./lib/format";
 import { eveningDay, eveningMissing } from "./lib/due";
-import { EVENING_ID, type PlannedReminder, planReminders } from "./lib/reminders";
-import type { DaysMap, Lang, Settings } from "./lib/types";
+import { EVENING_ID, type PlannedReminder, planReminders, styleOf } from "./lib/reminders";
+import { getSnooze, setSnooze } from "./lib/snooze";
+import type { DaysMap, Lang, ReminderStyle, Settings } from "./lib/types";
 
 /** True inside the Android app; false in a browser or installed web app. */
 export const isNative = Capacitor.isNativePlatform();
@@ -38,6 +39,26 @@ export async function updateWidget(days: DaysMap, t: TFn, lang: Lang, settings?:
   }
 }
 
+/** What the phone allows for each way of reminding. */
+export interface ReminderPerms { notifications: boolean; overlay: boolean; fullScreen: boolean; exact: boolean }
+interface RemindersPlugin {
+  schedule(o: { items: { id: number; at: number; title: string; body: string; style: string }[] }): Promise<void>;
+  test(o: { seconds: number; title: string; body: string; style: string }): Promise<void>;
+  clearShown(): Promise<void>;
+  permissions(): Promise<ReminderPerms>;
+  openSettings(o: { which: keyof ReminderPerms }): Promise<void>;
+  dueClosed(): Promise<void>;
+}
+const Reminders = registerPlugin<RemindersPlugin>("FitnesReminders");
+/** The installed Android app has the reminder module (full screen, banners). Older shells don't. */
+export const nativeReminders = () => isNative && Capacitor.isPluginAvailable("FitnesReminders");
+export const reminderPerms = () => Reminders.permissions();
+export const openReminderSettings = (which: keyof ReminderPerms) => Reminders.openSettings({ which });
+export const reminderDueClosed = () => { if (nativeReminders()) void Reminders.dueClosed().catch(() => {}); };
+export function testReminder(style: ReminderStyle, t: TFn) {
+  return Reminders.test({ seconds: 5, title: t("remind.test.title"), body: t("remind.test.body"), style: styleOf(style, 2) });
+}
+
 export async function notificationsAllowed(): Promise<boolean> {
   if (!isNative) return false;
   return (await LocalNotifications.checkPermissions()).display === "granted";
@@ -56,31 +77,44 @@ export async function askNotifications(): Promise<boolean> {
 export async function syncReminders(settings: Settings, days: DaysMap, t: TFn) {
   if (!isNative) return;
   try {
-    // Clear delivered reminders that are no longer true (the data has been logged).
-    const delivered = await LocalNotifications.getDeliveredNotifications();
     const evening = eveningDay(settings, new Date()) ?? iso(new Date());
     const done = eveningMissing(settings, days[evening], evening).length === 0;
-    // Old habit reminders (1000–4999) are no longer used; evening ones go once the evening is complete.
-    const stale = delivered.notifications.filter((n) => (n.id >= EVENING_ID && done) || (n.id >= 1000 && n.id < EVENING_ID));
+    const native = nativeReminders();
+    // Clear delivered reminders that are no longer true (the data has been logged).
+    const delivered = await LocalNotifications.getDeliveredNotifications();
+    // Old habit reminders (1000–4999) are no longer used; evening ones go once the evening is complete
+    // (or always, when the reminder module now shows them).
+    const stale = delivered.notifications.filter((n) => (n.id >= EVENING_ID && (done || native)) || (n.id >= 1000 && n.id < EVENING_ID));
     if (stale.length) await LocalNotifications.removeDeliveredNotifications({ notifications: stale });
     const pending = await LocalNotifications.getPending();
     if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
-    if (!(await notificationsAllowed())) return;
     // Evening repeats are many, so plan only the next couple of evenings; the app replans on every open.
     const plan: PlannedReminder[] = planReminders(settings, days, new Date(), 2);
-    if (!plan.length) return;
+    const text = (p: PlannedReminder) => {
+      // The text names what the evening still lacks, as of planning time.
+      const miss = eveningMissing(settings, days[p.date], p.date);
+      const names = miss.map((m) => (m.kind === "habit" ? m.habit.title : t(m.kind === "weight" ? "day.left.weight" : m.kind === "feel" ? "day.left.feel" : "day.left.bp")));
+      return { title: t("remind.missing.title"), body: names.length ? t("remind.missing.body", { list: names.join(", ") }) : t("remind.missing.generic") };
+    };
+    if (native) {
+      if (done) await Reminders.clearShown();
+      const snooze = getSnooze();
+      const style = settings.reminders.evening.style;
+      await Reminders.schedule({
+        items: plan.filter((p) => p.kind === "evening" && p.at.getTime() >= snooze)
+          .map((p) => ({ id: p.id, at: p.at.getTime(), ...text(p), style: styleOf(style, p.rep ?? 0) })),
+      });
+    }
+    if (!(await notificationsAllowed())) return;
+    const local = plan.filter((p) => p.kind === "review" || !native);
+    if (!local.length) return;
     await LocalNotifications.schedule({
-      notifications: plan.map((p) => {
+      notifications: local.map((p) => {
         if (p.kind === "review") {
           return { id: p.id, title: t("remind.review.title"), body: t("remind.review.body"), schedule: { at: p.at, allowWhileIdle: true }, extra: { route: "/" } };
         }
-        // The text names what the evening still lacks, as of planning time.
-        const miss = eveningMissing(settings, days[p.date], p.date);
-        const names = miss.map((m) => (m.kind === "habit" ? m.habit.title : t(m.kind === "weight" ? "day.left.weight" : m.kind === "feel" ? "day.left.feel" : "day.left.bp")));
         return {
-          id: p.id,
-          title: t("remind.missing.title"),
-          body: names.length ? t("remind.missing.body", { list: names.join(", ") }) : t("remind.missing.generic"),
+          id: p.id, ...text(p),
           schedule: { at: p.at, allowWhileIdle: true },
           // Stays in the shade until the evening is complete; cleared by the app, not by a swipe.
           ongoing: true,
@@ -100,6 +134,8 @@ export function listenNativeOpens(go: (route: string) => void) {
   void CapApp.addListener("appUrlOpen", (e) => {
     if (e.url.includes("://auth")) { void import("./cloud/client").then((m) => m.finishNativeLogin(e.url)); go("/settings/account"); return; }
     if (e.url.includes("://log")) go("/log");
+    // An evening reminder was tapped or opened the app by itself: show the evening screen now.
+    if (e.url.includes("://due")) { setSnooze(0); go("/"); }
   });
   void LocalNotifications.addListener("localNotificationActionPerformed", (e) => {
     const route = (e.notification.extra as { route?: string } | undefined)?.route;

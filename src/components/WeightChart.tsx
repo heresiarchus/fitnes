@@ -15,7 +15,7 @@ export function WeightChart({ days, dates }: { days: DaysMap; dates: string[] })
 
   const span = Math.max(1, dates.length - 1);
   const vs = pts.flatMap((p) => [p.v, p.avg]);
-  let lo = Math.floor(Math.min(...vs) - 0.5);
+  const lo = Math.floor(Math.min(...vs) - 0.5);
   let hi = Math.ceil(Math.max(...vs) + 0.5);
   if (hi - lo < 3) hi = lo + 3;
   const X = (i: number) => L + ((W - L - R) * i) / span;

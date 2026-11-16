@@ -1,16 +1,27 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Logo } from "./components/Brand";
+import { applyLook } from "./look";
 import { HashRouter, NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { PwaPrompt } from "./components/PwaPrompt";
 import { DueScreen } from "./components/DueScreen";
 import { useDays, useSettings } from "./db";
 import { I18nProvider, type MessageKey, useI18n } from "./i18n";
 import { DayLog } from "./pages/DayLog";
-import { DiaryPage } from "./pages/DiaryPage";
-import { CalendarPage } from "./pages/CalendarPage";
 import { Overview } from "./pages/Overview";
-import { Reports } from "./pages/Reports";
-import { SettingsPage } from "./pages/SettingsPage";
+
+// Pages other than the home screen and the day form load on first visit (and are fetched
+// in the background right after start), so the app starts faster on the phone.
+const pages = {
+  diary: () => import("./pages/DiaryPage"),
+  calendar: () => import("./pages/CalendarPage"),
+  reports: () => import("./pages/Reports"),
+  settings: () => import("./pages/SettingsPage"),
+};
+const DiaryPage = lazy(() => pages.diary().then((m) => ({ default: m.DiaryPage })));
+const CalendarPage = lazy(() => pages.calendar().then((m) => ({ default: m.CalendarPage })));
+const Reports = lazy(() => pages.reports().then((m) => ({ default: m.Reports })));
+const SettingsPage = lazy(() => pages.settings().then((m) => ({ default: m.SettingsPage })));
+const preload = () => Object.values(pages).forEach((load) => void load());
 import { askNotifications, isNative, listenNativeOpens, syncReminders, updateWidget } from "./native";
 
 const ICONS: Record<string, string> = {
@@ -35,6 +46,17 @@ function Shell() {
   const settings = useSettings();
   const navigate = useNavigate();
   const [notifOk, setNotifOk] = useState(false);
+  const [snoozed, setSnoozed] = useState(0);
+  useEffect(() => {
+    const on = () => setSnoozed((n) => n + 1);
+    window.addEventListener("fitnes:snooze", on);
+    return () => window.removeEventListener("fitnes:snooze", on);
+  }, []);
+
+  useEffect(() => {
+    const idle = (window as Window & { requestIdleCallback?: (f: () => void) => number }).requestIdleCallback;
+    if (idle) idle(preload); else setTimeout(preload, 1500);
+  }, []);
 
   useEffect(() => {
     listenNativeOpens((route) => navigate(route));
@@ -48,7 +70,7 @@ function Shell() {
     void updateWidget(days, t, lang, settings);
     void syncReminders(settings, days, t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, settings.reminders, settings.habits, settings.goals, lang, notifOk]);
+  }, [days, settings.reminders, settings.habits, settings.goals, lang, notifOk, snoozed]);
 
   return (
     <>
@@ -56,6 +78,7 @@ function Shell() {
         {days === undefined ? (
           <p className="empty">…</p>
         ) : (
+          <Suspense fallback={<p className="empty">…</p>}>
           <Routes>
             <Route path="/" element={<Overview days={days} settings={settings} />} />
             <Route path="/log" element={<DayLog days={days} settings={settings} />} />
@@ -66,6 +89,7 @@ function Shell() {
             <Route path="/settings/:cat" element={<SettingsPage days={days} settings={settings} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         )}
       </main>
       <nav className="tabbar no-print" aria-label="Main">
@@ -89,9 +113,8 @@ export function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.lang = settings.lang;
-    root.dataset.palette = settings.palette;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => { root.dataset.theme = settings.theme === "auto" ? (mq.matches ? "dark" : "light") : settings.theme; };
+    const apply = () => applyLook(settings.theme, settings.palette);
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);

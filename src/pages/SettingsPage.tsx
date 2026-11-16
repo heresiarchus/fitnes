@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { ReminderStylePicker } from "../components/ReminderStylePicker";
+import { applyLook } from "../look";
 import { Head } from "../components/Head";
 import { AccountCard } from "../components/AccountCard";
 import { HabitEditor } from "../components/HabitEditor";
@@ -22,7 +24,7 @@ import { num } from "../lib/format";
 import { applySamsung, emptySamsung, parseSamsungFile } from "../lib/samsung";
 import { syncNow } from "../sync/engine";
 import { checkRepo, SyncError } from "../sync/github";
-import type { DaysMap, Lang, Phase, Settings, Theme } from "../lib/types";
+import type { DaysMap, Lang, Phase, ReminderCfg, Settings, Theme } from "../lib/types";
 import { fromWatch, PALETTES, type Palette, type ReminderKind, SOURCE_KEYS } from "../lib/types";
 
 /** Light accent, light tint, dark accent, dark surface — shown on each style card. */
@@ -62,7 +64,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const [syncMsg, setSyncMsg] = useState<Status>({ text: "" });
   const [notifOk, setNotifOk] = useState(true);
   useEffect(() => { if (isNative) void notificationsAllowed().then(setNotifOk); }, []);
-  const setReminder = (k: ReminderKind, patch: Partial<{ on: boolean; time: string; until: string; every: number }>) =>
+  const setReminder = (k: ReminderKind, patch: Partial<ReminderCfg>) =>
     updateSettings({ reminders: { ...settings.reminders, [k]: { ...settings.reminders[k], ...patch } } });
   const count = Object.keys(days).length;
 
@@ -426,10 +428,11 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
                 </label>
                 <label className="field"><span>{t("remind.every")}</span>
                   <select value={ev.every ?? 5} disabled={!ev.on} onChange={(e) => setReminder("evening", { every: Number(e.target.value) })}>
-                    {[5, 10, 15, 30].map((m) => <option key={m} value={m}>{m} {t("common.min")}</option>)}
+                    {[5, 10, 15, 30, 60].map((m) => <option key={m} value={m}>{m} {t("common.min")}</option>)}
                   </select>
                 </label>
               </div>
+              {ev.on && <ReminderStylePicker value={ev.style} every={ev.every ?? 5} onChange={(style) => setReminder("evening", { style })} />}
               <span className="sub-h">{t("remind.includeBp")}</span>
               {onOff(settings.reminders.bp.on, (v) => setReminder("bp", { on: v }), t("remind.includeBp"))}
               <span className="sub-h">{t("remind.review")}</span>
@@ -468,13 +471,13 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         <span className="sub-h">{t("settings.theme")}</span>
         <div className="seg full" role="radiogroup" aria-label={t("settings.theme")}>
           {(["light", "dark", "auto"] as const).map((th) => (
-            <button key={th} type="button" role="radio" aria-checked={settings.theme === th} className={settings.theme === th ? "on" : ""} onClick={() => updateSettings({ theme: th as Theme })}>{t(`settings.theme.${th}` as MessageKey)}</button>
+            <button key={th} type="button" role="radio" aria-checked={settings.theme === th} className={settings.theme === th ? "on" : ""} onClick={() => { applyLook(th, settings.palette); void updateSettings({ theme: th as Theme }); }}>{t(`settings.theme.${th}` as MessageKey)}</button>
           ))}
         </div>
         <span className="sub-h">{t("pal.title")}</span>
         <div className="pal-grid">
           {PALETTES.map((p) => (
-            <button key={p} type="button" className={"pal" + (settings.palette === p ? " on" : "")} aria-pressed={settings.palette === p} onClick={() => updateSettings({ palette: p })}>
+            <button key={p} type="button" className={"pal" + (settings.palette === p ? " on" : "")} aria-pressed={settings.palette === p} onClick={() => { applyLook(settings.theme, p); void updateSettings({ palette: p }); }}>
               <i className="pal-prev">
                 <em className="lt"><b style={{ background: PAL_SWATCH[p][0] }} /><b style={{ background: PAL_SWATCH[p][1] }} /></em>
                 <em className="dk" style={{ background: PAL_SWATCH[p][3] }}><b style={{ background: PAL_SWATCH[p][2] }} /></em>

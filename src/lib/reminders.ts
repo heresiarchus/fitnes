@@ -1,6 +1,6 @@
 import { addDays, iso } from "./date";
 import { eveningMissing, hm } from "./due";
-import type { DayEntry, DaysMap, Settings } from "./types";
+import type { DayEntry, DaysMap, ReminderStyle, Settings } from "./types";
 
 export interface PlannedReminder {
   id: number;
@@ -8,6 +8,8 @@ export interface PlannedReminder {
   at: Date;
   /** The day the evening check is about (repeats after midnight still belong to it). */
   date: string;
+  /** Evening: which repeat of that evening this is (0 = the first). */
+  rep?: number;
 }
 
 /** Kept for the home widget and older callers: weight answer and day rating. */
@@ -42,7 +44,7 @@ export function planReminders(s: Settings, days: DaysMap, now: Date, daysAhead: 
       if (!eveningMissing(s, days[date], date).length) continue;
       for (let m = start, rep = 0; m <= stop && rep < 40; m += every, rep++) {
         const at = atMinutes(day, m);
-        if (at.getTime() > now.getTime()) out.push({ id: EVENING_ID + (i + 1) * 40 + rep, kind: "evening", at, date });
+        if (at.getTime() > now.getTime()) out.push({ id: EVENING_ID + (i + 1) * 40 + rep, kind: "evening", at, date, rep });
       }
     }
   }
@@ -56,4 +58,11 @@ export function planReminders(s: Settings, days: DaysMap, now: Date, daysAhead: 
     }
   }
   return out.sort((a, b) => a.at.getTime() - b.at.getTime());
+}
+
+/** The way one evening repeat appears: "escalate" starts with two banners, then the full screen. */
+export function styleOf(style: ReminderStyle | undefined, rep: number): Exclude<ReminderStyle, "escalate"> {
+  const s = style ?? "fullscreen";
+  if (s === "escalate") return rep < 2 ? "headsup" : "fullscreen";
+  return s;
 }
