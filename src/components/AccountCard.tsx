@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { sendCode, signInGoogle, signOut, useSession, verifyCode } from "../cloud/client";
+import { loginLinkFailed, sendCode, signInGoogle, signOut, useSession, verifyCode } from "../cloud/client";
 import { cloudConfigured, GOOGLE_LOGIN } from "../cloud/config";
 import { cloudSync, useCloudStatus } from "../cloud/sync";
 import { useI18n } from "../i18n";
@@ -54,6 +54,7 @@ export function AccountCard() {
   return (
     <section className="block">
       <p className="status" style={{ margin: 0 }}>{t("acc.why")}</p>
+      {loginLinkFailed() && !sent && <span className="status err" role="alert">{t("acc.linkFailed")}</span>}
       {GOOGLE_LOGIN && (
         <>
           <button type="button" className="google" onClick={() => void signInGoogle().then((e) => e && setMsg({ text: e, kind: "err" }))}>
@@ -67,7 +68,7 @@ export function AccountCard() {
         <input type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={email} onChange={(e) => { setEmail(e.target.value); setSent(false); }} />
       </label>
       {sent && (
-        <label className="field"><span>{t("acc.code")}</span>
+        <label className="field"><span>{t("acc.codeIfAny")}</span>
           <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={10} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
         </label>
       )}
