@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Head } from "../components/Head";
+import { AccountCard } from "../components/AccountCard";
 import { HabitEditor } from "../components/HabitEditor";
 import { Stepper } from "../components/Stepper";
 import { SyncBadge } from "../components/SyncBadge";
@@ -44,7 +45,7 @@ type Status = { text: string; kind?: "ok" | "err" };
 
 /** Explanations that belong to a whole settings category, shown behind "?" next to its title. */
 const CAT_HELP: Record<string, MessageKey> = {
-  goals: "goals.help", reminders: "remind.how", sources: "src.intro", habits: "habit.manageHelp", data: "settings.dataHint",
+  account: "acc.help", goals: "goals.help", reminders: "remind.how", sources: "src.intro", habits: "habit.manageHelp", data: "settings.dataHint",
 };
 
 export function SettingsPage({ days, settings }: { days: DaysMap; settings: Settings }) {
@@ -222,6 +223,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
         <Link className="back" to="/settings">‹ {t("nav.settings")}</Link>
         <Head as="h1" title={catTitle} help={CAT_HELP[cat] ? t(CAT_HELP[cat]) : undefined} />
       </header>
+      {cat === "account" && <AccountCard />}
       {cat === "connect" && (
         <>
       <section className="block">

@@ -115,6 +115,9 @@ export const SOURCE_KEYS: SourceKey[] = ["steps", "exercise", "weight", "bp", "s
 export interface SheetsConfig {
   /** Address of the Apps Script web app bound to the user's Google Sheet. */
   url: string;
+  /** When the user set or removed it (follows the account to other devices). */
+  updatedAt?: string;
+  deleted?: true;
   lastSentAt?: string;
   lastError?: string;
 }
@@ -126,6 +129,8 @@ export interface SyncConfig {
   token: string;
   path: string;
   lastSyncAt?: string;
+  updatedAt?: string;
+  deleted?: true;
 }
 
 export type DaysMap = Record<string, DayEntry>;

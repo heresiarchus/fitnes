@@ -2,7 +2,7 @@ import { type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
 import { type MessageKey, useI18n } from "../i18n";
 import { ddmm } from "../lib/date";
-import { fmt, fmtInt } from "../lib/format";
+import { fmtInt, fmtKg } from "../lib/format";
 import type { DaysMap } from "../lib/types";
 
 const PAGE = 30;
@@ -22,7 +22,7 @@ export function History({ days }: { days: DaysMap }) {
           {dates.map((d) => {
             const x = days[d];
             const parts: ReactNode[] = [];
-            if (x.weight != null) parts.push(<span key="w"><b>{fmt(x.weight, lang)} {t("common.kg")}</b>{(x.weightCond ?? "morning") === "morning" ? "" : " " + t("history.notMorning")}</span>);
+            if (x.weight != null) parts.push(<span key="w"><b>{fmtKg(x.weight, lang)} {t("common.kg")}</b>{(x.weightCond ?? "morning") === "morning" ? "" : " " + t("history.notMorning")}</span>);
             if (x.steps != null) parts.push(<span key="s">{fmtInt(x.steps, lang)} {t("common.steps")}</span>);
             if (x.walkMin) parts.push(<span key="wk">{t("history.walk", { n: x.walkMin })}</span>);
             if (x.cardioMin) parts.push(<span key="c">{t("history.cardio", { n: x.cardioMin, what: x.cardioWhat || t("history.cardioDefault") })}</span>);

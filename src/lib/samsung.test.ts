@@ -61,7 +61,7 @@ describe("Samsung Health other export files", () => {
     const d10 = r.changes.find((d) => d.date === "2026-11-10")!;
     expect(d10).toMatchObject({
       note: "keep", walkMin: 35, walkIntensity: "moderate", cardioMin: 30, cardioWhat: "name:bike",
-      weight: 130.5, weightCond: "morning",
+      weight: 130.46, weightCond: "morning",
       bp: { m1: { sys: 132, dia: 84, pulse: 70 }, m2: { sys: 130, dia: 82, pulse: null }, e1: { sys: 128, dia: 80, pulse: 66 } },
       updatedAt: "2026-11-12T00:00:00.000Z",
     });

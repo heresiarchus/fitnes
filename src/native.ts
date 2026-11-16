@@ -97,7 +97,10 @@ export async function syncReminders(settings: Settings, days: DaysMap, t: TFn) {
 /** Opens the right screen when the app is started from the widget or a reminder. */
 export function listenNativeOpens(go: (route: string) => void) {
   if (!isNative) return;
-  void CapApp.addListener("appUrlOpen", (e) => { if (e.url.includes("://log")) go("/log"); });
+  void CapApp.addListener("appUrlOpen", (e) => {
+    if (e.url.includes("://auth")) { void import("./cloud/client").then((m) => m.finishNativeLogin(e.url)); go("/settings/account"); return; }
+    if (e.url.includes("://log")) go("/log");
+  });
   void LocalNotifications.addListener("localNotificationActionPerformed", (e) => {
     const route = (e.notification.extra as { route?: string } | undefined)?.route;
     go(route ?? "/log");

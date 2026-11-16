@@ -16,6 +16,7 @@ const ICONS = {
   data: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
   table: "M4 5h16v14H4zM4 10h16M10 5v14",
   task: "M9 11l3 3 8-8M20 12v7H4V5h11",
+  user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0",
 } as const;
 export type IconName = keyof typeof ICONS;
 

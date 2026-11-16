@@ -167,7 +167,7 @@ export function parseSamsungFile(text: string, into: SamsungData): SamsungKind {
       const lt = localTime(r[iS] ?? "", iO >= 0 ? r[iO] : undefined);
       const w = Number(r[iW]);
       if (!lt || !(w > 0)) continue;
-      into.weight.push({ ...lt, weight: Math.round(w * 10) / 10 });
+      into.weight.push({ ...lt, weight: Math.round(w * 100) / 100 });
     }
     return add("weight");
   }

@@ -4,15 +4,20 @@ import { useHealthState } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import type { Settings } from "../lib/types";
 import { useSyncStatus } from "../sync/engine";
+import { useSession } from "../cloud/client";
+import { cloudConfigured } from "../cloud/config";
 
 /** Settings start page: one row per category with its current state. */
 export function SettingsMenu({ settings, syncOn, sheetsOn }: { settings: Settings; syncOn: boolean; sheetsOn: boolean }) {
   const { t } = useI18n();
   const sync = useSyncStatus();
   const health = useHealthState();
+  const session = useSession();
   const yes = t("menu.on"), no = t("menu.off");
   const rows: { cat: string; icon: IconName; state: string; warn?: boolean }[] = [
-    { cat: "connect", icon: "sync", warn: !syncOn || sync.state === "error",
+    { cat: "account", icon: "user", warn: cloudConfigured() && session === null,
+      state: !cloudConfigured() ? t("acc.notReadyShort") : session ? session.user.email ?? "" : t("acc.signedOut") },
+    { cat: "connect", icon: "data", warn: (!syncOn && !session) || sync.state === "error",
       state: [`GitHub: ${syncOn ? (sync.state === "error" ? t("menu.error") : yes) : no}`, `Samsung: ${settings.healthLinked || health?.on ? yes : no}`, `Google: ${sheetsOn ? yes : no}`].join(" · ") },
     { cat: "sources", icon: "watch", state: settings.healthLinked ? t("menu.sourcesSet") : t("menu.manualOnly") },
     { cat: "goals", icon: "move", state: settings.goals.filter((g) => g.on).map((g) => t(`goal.${g.metric}` as MessageKey)).join(", ") || no },

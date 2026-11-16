@@ -41,7 +41,7 @@ export function mapHealth(input: {
   if (input.workouts) out.kinds.push("exercise");
   for (const s of input.weight ?? []) {
     const d = new Date(s.startDate);
-    if (s.value > 0) out.weight.push({ date: iso(d), hour: d.getHours(), time: d.getTime(), weight: Math.round(s.value * 10) / 10 });
+    if (s.value > 0) out.weight.push({ date: iso(d), hour: d.getHours(), time: d.getTime(), weight: Math.round(s.value * 100) / 100 });
   }
   if (input.weight) out.kinds.push("weight");
   for (const s of input.bp ?? []) {

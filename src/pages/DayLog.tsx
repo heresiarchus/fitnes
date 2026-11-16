@@ -14,7 +14,7 @@ import { deleteDay, deleteItem, saveDay, saveItem, useItems } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import { addDays, ddmm, iso, parseIso } from "../lib/date";
 import { type DayFormState, fromFormState, missingRequired, type SetRow, toFormState } from "../lib/dayForm";
-import { fmt, num } from "../lib/format";
+import { fmtKg, num } from "../lib/format";
 import { activeHabits } from "../lib/habits";
 import { lastStrengthFor, previousBp, previousWeight, previousWorkout } from "../lib/stats";
 import type { BpSlot, DayEntry, DaysMap, Flag, PainArea, Settings, SourceKey } from "../lib/types";
@@ -193,13 +193,13 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
 
       {!isWatch("weight") && (
         <Card icon="weight" title={t("form.weight")}
-          status={f.weightChoice === "yes" ? okChip(`${fmt(num(f.weight), lang)} ${t("common.kg")}`) : f.weightChoice === "no" ? okChip(t("form.noWeightChosen")) : todoChip(t("form.required"))}>
+          status={f.weightChoice === "yes" ? okChip(`${fmtKg(num(f.weight), lang)} ${t("common.kg")}`) : f.weightChoice === "no" ? okChip(t("form.noWeightChosen")) : todoChip(t("form.required"))}>
           <div className={"weight-box" + (f.weightChoice === "yes" ? "" : " pending")}>
             <WeightPicker value={f.weight} onChange={(v) => setF((p) => weighed(p, v))} />
             <div className="weight-side">
               {f.weightChoice === "pending" ? (
                 <div className="pill-row">
-                  {prevW && <button type="button" className="primary compact" onClick={() => setF((p) => weighed(p, p.weight || String(prevW.weight)))}>{t("form.weightSame")} {fmt(num(f.weight) ?? prevW.weight, lang)}</button>}
+                  {prevW && <button type="button" className="primary compact" onClick={() => setF((p) => weighed(p, p.weight || String(prevW.weight)))}>{t("form.weightSame")} {fmtKg(num(f.weight) ?? prevW.weight, lang)}</button>}
                   <button type="button" className="pill" onClick={() => set("weightChoice", "no")}>{t("form.weightRemove")}</button>
                 </div>
               ) : (
@@ -209,7 +209,7 @@ function DayForm({ date, today, entry, days, settings, onDate }: FormProps) {
                     : <button type="button" className="pill" onClick={() => setF((p) => weighed(p, p.weight))}>{t("form.weighAfterAll")}</button>}
                 </div>
               )}
-              <ScaleButton onWeight={(kg) => setF((p) => weighed(p, kg.toFixed(1)))} />
+              <ScaleButton onWeight={(kg) => setF((p) => weighed(p, String(kg)))} />
               <div className="seg full" role="radiogroup" aria-label={t("form.weightCond")}>
                 {(["morning", "other"] as const).map((c) => (
                   <button key={c} type="button" role="radio" aria-checked={f.weightCond === c} className={f.weightCond === c ? "on" : ""} onClick={() => set("weightCond", c)}>{t(c === "morning" ? "form.cond.morning" : "form.cond.other")}</button>

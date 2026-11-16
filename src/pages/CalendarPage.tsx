@@ -6,7 +6,7 @@ import { Stepper } from "../components/Stepper";
 import { saveDay } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import { addDays, ddmm, iso, monthDates, parseIso } from "../lib/date";
-import { fmt, fmtInt, monthName, num } from "../lib/format";
+import { fmt, fmtInt, fmtKg, monthName, num } from "../lib/format";
 import { exerciseName } from "../lib/report";
 import { type BpAvg, bpIsHigh, bpPeriod, bpSummary, morningWeight, nextBpSlot, previousBp } from "../lib/stats";
 import type { DayEntry, DaysMap, Settings } from "../lib/types";
@@ -175,7 +175,7 @@ function DayDetail({ date, day, settings }: { date: string; day: DayEntry | unde
   const { t, lang } = useI18n();
   const rows: [string, ReactNode][] = [];
   if (day) {
-    if (day.weight != null) rows.push([t("cal.day.weight"), `${fmt(day.weight, lang)} ${t("common.kg")}${(day.weightCond ?? "morning") === "morning" ? "" : " " + t("history.notMorning")}`]);
+    if (day.weight != null) rows.push([t("cal.day.weight"), `${fmtKg(day.weight, lang)} ${t("common.kg")}${(day.weightCond ?? "morning") === "morning" ? "" : " " + t("history.notMorning")}`]);
     if (day.steps != null) rows.push([t("cal.day.steps"), fmtInt(day.steps, lang)]);
     if (day.walkMin) rows.push([t("cal.day.walk"), `${day.walkMin} ${t("common.min")} · ${t(`form.walkInt.${day.walkIntensity ?? "light"}` as MessageKey)}`]);
     if (day.cardioMin) rows.push([t("cal.day.cardio"), `${day.cardioMin} ${t("common.min")}${day.cardioWhat ? " · " + day.cardioWhat : ""}`]);

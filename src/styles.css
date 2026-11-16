@@ -589,3 +589,23 @@ section.block.menu { padding: 6px; gap: 0; }
 .ring.done .ring-fg { stroke: var(--good); }
 .ring text { fill: var(--ink); font-size: 13px; font-weight: 800; font-family: var(--font); }
 .goal-ctl { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+
+/* Weighing screen */
+.due-sheet.weigh { min-height: 60vh; align-content: start; }
+.weigh-main { display: grid; justify-items: center; text-align: center; gap: 12px; padding: 24px 8px; }
+.weigh-main.left { justify-items: stretch; text-align: left; }
+.weigh-num { font-size: 3.4rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1; }
+.weigh-num small { font-size: 1.1rem; color: var(--muted); font-weight: 650; }
+.weigh-num.live { color: var(--muted); }
+.weigh-num.done { color: var(--good); }
+.weigh-pulse { width: 86px; height: 86px; border-radius: 50%; background: var(--accent-soft); box-shadow: 0 0 0 0 var(--accent); animation: weigh-pulse 1.6s ease-out infinite; }
+@keyframes weigh-pulse { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 26px transparent; } }
+
+/* Account */
+.acc-who { display: flex; gap: 12px; align-items: center; }
+.acc-who > div { display: grid; min-width: 0; }
+.acc-who b { overflow-wrap: anywhere; }
+.acc-ava { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 1.2rem; flex: none; }
+button.google { background: var(--surface-hi); color: #1f1f1f; border: 1px solid var(--line); gap: 10px; }
+button.google svg { width: 20px; height: 20px; }
+.or { text-align: center; color: var(--muted); font-size: 0.85rem; }

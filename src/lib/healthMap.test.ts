@@ -38,7 +38,7 @@ describe("Health Connect mapping", () => {
     const r = applySamsung({}, data, all, (k) => k, new Date(at(2026, 11, 11, 22)));
     expect(r.changes).toHaveLength(1);
     expect(r.changes[0]).toMatchObject({
-      date: "2026-11-11", steps: 6412, walkMin: 36, cardioMin: 30, cardioWhat: "bike", weight: 136.2, weightCond: "morning",
+      date: "2026-11-11", steps: 6412, walkMin: 36, cardioMin: 30, cardioWhat: "bike", weight: 136.24, weightCond: "morning",
       bp: { e1: { sys: 132, dia: 84, pulse: null } }, sleepMin: 400, sleepStart: "23:40", sleepEnd: "06:50", restingHr: 62,
     });
     const manual = applySamsung({}, data, { ...all, weight: false, bp: false, sleep: false }, (k) => k).changes[0];
