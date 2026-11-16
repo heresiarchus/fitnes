@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { DEFAULT_GOALS } from "./lib/goals";
 import { DEFAULT_HABITS, migrateHabits } from "./lib/habits";
 import type { DayEntry, DaysMap, Item, Settings, SheetsConfig, SyncConfig } from "./lib/types";
+import { connectionRecords, type Secret, stampLegacy } from "./cloud/plan";
 
 interface SettingsRow extends Settings { key: "main" }
 type MetaRow = { key: "sync"; value: SyncConfig } | { key: "sheets"; value: SheetsConfig } | { key: "health"; value: HealthState } | { key: "migrations"; value: string[] } | { key: "cloud"; value: CloudState };
@@ -198,19 +199,18 @@ export function useSheetsConfig(): SheetsConfig | null | undefined {
   return useLiveQuery(async () => live((await db.meta.get("sheets"))?.value as SheetsConfig | undefined) ?? null, []);
 }
 
-/** Raw stored connection records (including removals), for account sync. */
-export async function getSecrets(): Promise<Record<string, { updatedAt: string; deleted?: true; [k: string]: unknown }>> {
-  const out: Record<string, { updatedAt: string; deleted?: true; [k: string]: unknown }> = {};
-  const sync = (await db.meta.get("sync"))?.value as SyncConfig | undefined;
-  const sheets = (await db.meta.get("sheets"))?.value as SheetsConfig | undefined;
-  // Only what identifies the connection travels; per-device bookkeeping (last sync time, errors) stays.
-  if (sync?.updatedAt) out.sync = sync.deleted ? { deleted: true, updatedAt: sync.updatedAt } : { provider: sync.provider, repo: sync.repo, token: sync.token, path: sync.path, updatedAt: sync.updatedAt };
-  if (sheets?.updatedAt) out.sheets = sheets.deleted ? { deleted: true, updatedAt: sheets.updatedAt } : { url: sheets.url, updatedAt: sheets.updatedAt };
-  return out;
+/** Stored connection records (including removals), for account sync. */
+export async function getSecrets(): Promise<Record<string, Secret>> {
+  let sync = (await db.meta.get("sync"))?.value as SyncConfig | undefined;
+  let sheets = (await db.meta.get("sheets"))?.value as SheetsConfig | undefined;
+  const stamped = stampLegacy(sync, sheets);
+  if (stamped?.sync) { sync = stamped.sync; await db.meta.put({ key: "sync", value: sync }); }
+  if (stamped?.sheets) { sheets = stamped.sheets; await db.meta.put({ key: "sheets", value: sheets }); }
+  return connectionRecords(sync, sheets);
 }
 
 /** Applies a connection record that came from the account. */
-export async function putSecret(id: string, v: { updatedAt: string; deleted?: true; [k: string]: unknown }) {
+export async function putSecret(id: string, v: Secret) {
   if (id === "sync") await db.meta.put({ key: "sync", value: v.deleted ? { provider: "github", repo: "", token: "", path: "", deleted: true, updatedAt: v.updatedAt } : (v as unknown as SyncConfig) });
   if (id === "sheets") await db.meta.put({ key: "sheets", value: v.deleted ? { url: "", deleted: true, updatedAt: v.updatedAt } : (v as unknown as SheetsConfig) });
 }

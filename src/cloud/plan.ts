@@ -1,4 +1,4 @@
-import type { DayEntry, Item, Settings } from "../lib/types";
+import type { DayEntry, Item, Settings, SheetsConfig, SyncConfig } from "../lib/types";
 
 export type RowKind = "day" | "item" | "settings" | "secret";
 export interface Row { kind: RowKind; id: string; data: { updatedAt: string } & Record<string, unknown>; updated_at: string; server_at?: string }
@@ -64,5 +64,28 @@ export function planSync(local: LocalSnapshot, remote: Row[], syncedBefore: Reco
   for (const i of local.items) consider("item", i.id, i);
   if (local.settings) consider("settings", "main", local.settings);
   for (const [id, s] of Object.entries(local.secrets)) consider("secret", id, s);
+  return out;
+}
+
+/** Stamp for connections set up before accounts existed and never used: any real change wins. */
+export const LEGACY_STAMP = "2000-01-01T00:00:00.000Z";
+
+/**
+ * Connections set up before accounts existed carry no updatedAt. They get one once, from when
+ * they last worked on this device (so the device that used them most recently wins a tie).
+ * Returns the stamped configs to store, or null when nothing needs stamping.
+ */
+export function stampLegacy(sync: SyncConfig | undefined, sheets: SheetsConfig | undefined) {
+  const out: { sync?: SyncConfig; sheets?: SheetsConfig } = {};
+  if (sync && !sync.updatedAt && sync.token) out.sync = { ...sync, updatedAt: sync.lastSyncAt ?? LEGACY_STAMP };
+  if (sheets && !sheets.updatedAt && sheets.url) out.sheets = { ...sheets, updatedAt: sheets.lastSentAt ?? LEGACY_STAMP };
+  return out.sync || out.sheets ? out : null;
+}
+
+/** What of each connection travels with the account; per-device bookkeeping (last run, errors) stays. */
+export function connectionRecords(sync: SyncConfig | undefined, sheets: SheetsConfig | undefined): Record<string, Secret> {
+  const out: Record<string, Secret> = {};
+  if (sync?.updatedAt) out.sync = sync.deleted ? { deleted: true, updatedAt: sync.updatedAt } : { provider: sync.provider, repo: sync.repo, token: sync.token, path: sync.path, updatedAt: sync.updatedAt };
+  if (sheets?.updatedAt) out.sheets = sheets.deleted ? { deleted: true, updatedAt: sheets.updatedAt } : { url: sheets.url, updatedAt: sheets.updatedAt };
   return out;
 }
