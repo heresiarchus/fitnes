@@ -15,7 +15,7 @@ async function pull(since: string | null): Promise<Row[]> {
   const c = cloud()!;
   const out: Row[] = [];
   for (let from = 0; ; from += PAGE) {
-    let q = c.from("records").select("kind,id,data,updated_at,server_at").order("server_at", { ascending: true }).range(from, from + PAGE - 1);
+    let q = c.from("records").select("kind,id,data,updated_at,server_at").order("server_at", { ascending: true }).order("kind").order("id").range(from, from + PAGE - 1);
     if (since) q = q.gt("server_at", since);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
