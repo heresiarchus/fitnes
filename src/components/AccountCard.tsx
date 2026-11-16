@@ -42,7 +42,7 @@ export function AccountCard() {
     setBusy(true); setMsg({ text: "" });
     const err = await sendCode(email);
     setBusy(false);
-    if (err) setMsg({ text: t("acc.sendError", { e: err }), kind: "err" }); else { setSent(true); setMsg({ text: t("acc.sent", { email }), kind: "ok" }); }
+    if (err) setMsg({ text: /rate limit/i.test(err) ? t("acc.rateLimit") : t("acc.sendError", { e: err }), kind: "err" }); else { setSent(true); setMsg({ text: t("acc.sent", { email }), kind: "ok" }); }
   }
   async function verify() {
     setBusy(true);

@@ -6,6 +6,6 @@
 export const SUPABASE_URL = "https://gymjrxdbbmajsonxalkm.supabase.co";
 export const SUPABASE_KEY = "sb_publishable_KD_IaPSfaGREToD7v42Axw_IPm-3FmF";
 /** Turned on once the Google provider is set up in the project. */
-export const GOOGLE_LOGIN = false;
+export const GOOGLE_LOGIN = true;
 
 export const cloudConfigured = () => !!SUPABASE_URL && !!SUPABASE_KEY;
