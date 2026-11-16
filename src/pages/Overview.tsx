@@ -8,6 +8,7 @@ import { HabitsToday } from "../components/HabitsToday";
 import { QuestionsCard } from "../components/QuestionsCard";
 import { GoalsCard } from "../components/GoalsCard";
 import { Head } from "../components/Head";
+import { dayPhase, Logo, SkyArt } from "../components/Brand";
 import { TasksCard } from "../components/TasksCard";
 import { PeriodNav } from "../components/PeriodNav";
 import { updateSettings } from "../db";
@@ -25,27 +26,32 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
   const prev = weekDates(offset - 1);
   const flags = periodStats(days, dates).flags;
   const chartDates = rangeDates(iso(addDays(new Date(), -55)), 56);
+  const phase = dayPhase();
 
   return (
     <>
       <header className="page-head">
-        <h1>{t("app.title")}</h1>
+        <div className="brand-head">
+          <Logo size={44} />
+          <div><span className="brand-name">Fitnes</span><h1>{t(`greet.${phase}` as MessageKey)}</h1></div>
+        </div>
         <SyncBadge />
       </header>
       <SyncWarning />
 
-      <section className="today" aria-label={t("today.title")}>
-        <div>
+      <section className={"today sky-" + phase} aria-label={t("today.title")}>
+        <SkyArt phase={phase} />
+        <div className="today-h">
           <h2>{t("today.title")}</h2>
           <span className="today-date">{new Date().toLocaleDateString(lang === "uk" ? "uk-UA" : "en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
         </div>
         <ul className="today-items">
-          {!settings.hideWeight && <li><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmtKg(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></li>}
-          <li><span>{t("cal.day.steps")}</span><b>{td?.steps != null ? fmtInt(td.steps, lang) : t("today.none")}</b></li>
-          <li><span>{t("cal.day.walk")}</span><b>{td?.walkMin ? `${td.walkMin} ${t("common.min")}` : t("today.none")}</b></li>
-          <li><span>{t("form.feeling")}</span><b>{td?.feel != null ? `${td.feel} / 5` : td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></li>
+          {!settings.hideWeight && <li className="t-weight"><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmtKg(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></li>}
+          <li className="t-steps"><span>{t("cal.day.steps")}</span><b>{td?.steps != null ? fmtInt(td.steps, lang) : t("today.none")}</b></li>
+          <li className="t-move"><span>{t("cal.day.walk")}</span><b>{td?.walkMin ? `${td.walkMin} ${t("common.min")}` : t("today.none")}</b></li>
+          <li className="t-feel"><span>{t("form.feeling")}</span><b>{td?.feel != null ? `${td.feel} / 5` : td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></li>
         </ul>
-        <Link className="btn block" to="/log">{td ? t("today.more") : t("today.fill")}</Link>
+        <Link className={"btn block" + (td ? "" : " invite")} to="/log">{td ? t("today.more") : t("today.fill")}</Link>
       </section>
 
       <GoalsCard settings={settings} day={td} />
@@ -53,7 +59,7 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
       <HabitsToday days={days} settings={settings} />
       <TasksCard />
 
-      <section className="block" aria-label={t("week.title")}>
+      <section className="block" data-c="table" aria-label={t("week.title")}>
         <PeriodNav
           label={`${t("week.title")} ${ddmm(dates[0])}–${ddmm(dates[6])}`}
           offset={offset} onChange={setOffset}
@@ -78,13 +84,13 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
 
       <Link className="btn block" to="/reports">{t("more.reports")} →</Link>
 
-      <section className="block">
-        <Head title={t("chart.weight")} help={t("chart.weightLegend")} />
+      <section className="block" data-c="weight">
+        <Head icon="weight" title={t("chart.weight")} help={t("chart.weightLegend")} />
         <WeightChart days={days} dates={chartDates} />
       </section>
 
-      <section className="block">
-        <Head title={t("chart.steps")} help={settings.stepGoal != null ? t("chart.stepsLegend") : undefined} />
+      <section className="block" data-c="steps">
+        <Head icon="watch" title={t("chart.steps")} help={settings.stepGoal != null ? t("chart.stepsLegend") : undefined} />
         <StepsChart days={days} dates={dates} goal={settings.stepGoal} />
       </section>
     </>

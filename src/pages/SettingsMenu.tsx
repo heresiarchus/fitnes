@@ -33,7 +33,7 @@ export function SettingsMenu({ settings, syncOn, sheetsOn }: { settings: Setting
       <header className="page-head"><h1>{t("nav.settings")}</h1></header>
       <section className="block menu">
         {rows.map((r) => (
-          <Link key={r.cat} className="menu-row" to={`/settings/${r.cat}`}>
+          <Link key={r.cat} className="menu-row" to={`/settings/${r.cat}`} data-c={r.icon}>
             <span className="card-ic"><Icon name={r.icon} /></span>
             <span className="menu-t"><b>{t(`cat.${r.cat}` as MessageKey)}</b><small className={r.warn ? "warn" : ""}>{r.state}</small></span>
             <span className="menu-go" aria-hidden="true">›</span>

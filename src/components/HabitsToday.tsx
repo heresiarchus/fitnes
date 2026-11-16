@@ -23,8 +23,8 @@ export function HabitsToday({ days, settings }: { days: DaysMap; settings: Setti
   }
 
   return (
-    <section className="block">
-      <Head title={t("habit.title")} />
+    <section className="block" data-c="habits">
+      <Head icon="habits" title={t("habit.title")} />
       {habits.map((h) => {
         const m = markOf(day, h.id);
         const row: HabitRow = rowFromMark(m);

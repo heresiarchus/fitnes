@@ -50,7 +50,7 @@ export function Card({ icon, title, sub, status, fold, open, children, id }: Pro
   );
   if (fold) {
     return (
-      <section className="block fold" id={id}>
+      <section className="block fold" id={id} data-c={icon}>
         <details open={open}>
           <summary>{head}</summary>
           <div className="card-b">{children}</div>
@@ -58,5 +58,5 @@ export function Card({ icon, title, sub, status, fold, open, children, id }: Pro
       </section>
     );
   }
-  return <section className="block" id={id}>{head}{children}</section>;
+  return <section className="block" id={id} data-c={icon}>{head}{children}</section>;
 }

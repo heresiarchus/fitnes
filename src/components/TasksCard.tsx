@@ -24,8 +24,8 @@ export function TasksCard() {
   }
 
   return (
-    <section className="block">
-      <Head title={t("task.title")} />
+    <section className="block" data-c="task">
+      <Head icon="task" title={t("task.title")} />
       {!open.length && !done.length && <p className="status" style={{ margin: 0 }}>{t("task.empty")}</p>}
       {open.length > 0 && (
         <ul className="tasks">

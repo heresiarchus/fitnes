@@ -24,7 +24,7 @@ export function StatGrid({ days, dates, prevDates, settings, weekly }: Props) {
 
   return (
     <div className="stats">
-      <div className="stat">
+      <div className="stat" data-c="weight">
         <span className="label">{t("stat.weight")}</span>
         <span className="big">{fmt(s.avgWeight, lang)}</span>
         <span className="meta">
@@ -40,7 +40,7 @@ export function StatGrid({ days, dates, prevDates, settings, weekly }: Props) {
           {!weekly && s.weights.length > 1 && <> · {t("stat.weightRange", { min: fmt(s.minWeight, lang), max: fmt(s.maxWeight, lang) })}</>}
         </span>
       </div>
-      <div className={"stat" + (settings.stepGoal != null && s.avgSteps != null && s.avgSteps >= settings.stepGoal ? " done" : "")}>
+      <div data-c="steps" className={"stat" + (settings.stepGoal != null && s.avgSteps != null && s.avgSteps >= settings.stepGoal ? " done" : "")}>
         <span className="label">{t("stat.steps")}</span>
         <span className="big">{fmtInt(s.avgSteps, lang)}</span>
         <span className="meta">
@@ -48,7 +48,7 @@ export function StatGrid({ days, dates, prevDates, settings, weekly }: Props) {
           {!weekly && <> · {t("stat.totalSteps").toLowerCase()} {fmtInt(s.totalSteps, lang)}</>}
         </span>
       </div>
-      <div className={"stat" + (wt && walkTotal >= wt[0] ? " done" : "")}>
+      <div data-c="move" className={"stat" + (wt && walkTotal >= wt[0] ? " done" : "")}>
         <span className="label">{t("stat.walk")}</span>
         <span className="big">{walkTotal}</span>
         {wt && <div className="bar"><span style={{ width: Math.min(100, Math.round((walkTotal / wt[0]) * 100)) + "%" }} /></div>}
@@ -57,7 +57,7 @@ export function StatGrid({ days, dates, prevDates, settings, weekly }: Props) {
           {s.walkMod > 0 && <>{wt ? " · " : ""}{t("stat.walkModerate", { n: s.walkMod })}</>}
         </span>
       </div>
-      <div className={"stat" + (weekly && s.strengthDays >= ph.strength ? " done" : "")}>
+      <div data-c="strength" className={"stat" + (weekly && s.strengthDays >= ph.strength ? " done" : "")}>
         <span className="label">{t("stat.strength")}</span>
         <span className="big">{weekly ? `${s.strengthDays} ${t("common.of")} ${ph.strength}` : s.strengthDays}</span>
         {weekly && <div className="bar"><span style={{ width: Math.min(100, Math.round((s.strengthDays / ph.strength) * 100)) + "%" }} /></div>}

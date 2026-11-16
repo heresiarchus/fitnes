@@ -1,7 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import "@fontsource-variable/onest";
 import "./styles.css";
+import "./design.css";
 import { startAutoSync } from "./sync/engine";
 import { runMigrations } from "./db";
 import { startCloudSync } from "./cloud/sync";

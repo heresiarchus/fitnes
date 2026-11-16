@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Status bar icon: the app mark in white. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:pathData="M3,13 L7,13 L9,7 L12.5,18 L15,10 L16.5,13 L21,13"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="2.2"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group android:pivotX="256" android:pivotY="256" android:scaleX="1.25" android:scaleY="1.25">
+        <path
+            android:pathData="M376.3,166.1 A150,150 0 1,1 300.6,112.8"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="40"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M150,262 L200,262 L228,206 L266,320 L298,234 L318,262 L362,262"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="38"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
 </vector>
