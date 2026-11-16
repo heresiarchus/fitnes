@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Logo } from "./components/Brand";
 import { HashRouter, NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { PwaPrompt } from "./components/PwaPrompt";
 import { DueScreen } from "./components/DueScreen";
@@ -68,6 +69,7 @@ function Shell() {
         )}
       </main>
       <nav className="tabbar no-print" aria-label="Main">
+        <div className="side-brand" aria-hidden="true"><Logo size={36} /><b>Fitnes</b></div>
         {TABS.map((tab) => (
           <NavLink key={tab.key} to={tab.to} end={tab.to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS[tab.key]} /></svg>

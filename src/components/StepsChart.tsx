@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { useI18n } from "../i18n";
 import { ddmm } from "../lib/date";
 import { fmtInt } from "../lib/format";
@@ -6,6 +7,7 @@ import type { DaysMap } from "../lib/types";
 const W = 700, H = 200, L = 52, R = 24, T = 12, B = 28;
 
 export function StepsChart({ days, dates, goal }: { days: DaysMap; dates: string[]; goal: number | null }) {
+  const id = useId();
   const { t, lang } = useI18n();
   const vals = dates.map((d) => days[d]?.steps ?? null);
   const present = vals.filter((v): v is number => v != null);
@@ -26,6 +28,10 @@ export function StepsChart({ days, dates, goal }: { days: DaysMap; dates: string
   return (
     <div className="chart-wrap">
       <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("chart.stepsAria", { v: fmtInt(avg, lang) })}>
+        <defs>
+          <linearGradient id={id + "b"} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#4ade80" /><stop offset="1" stopColor="#16a34a" stopOpacity="0.75" /></linearGradient>
+          <linearGradient id={id + "m"} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#facc15" /><stop offset="1" stopColor="#16a34a" /></linearGradient>
+        </defs>
         {ticks.map((v) => (
           <g key={v}>
             <line className="grid" x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} />
@@ -35,7 +41,8 @@ export function StepsChart({ days, dates, goal }: { days: DaysMap; dates: string
         {vals.map((v, i) =>
           v == null ? null : (
             <rect key={dates[i]} className={"barmark" + (goal != null && v >= goal ? " met" : "")}
-              x={X(i) - bw / 2} y={Y(v)} width={bw} height={Math.max(0, Y(0) - Y(v))} rx={2}>
+              x={X(i) - bw / 2} y={Y(v)} width={bw} height={Math.max(0, Y(0) - Y(v))} rx={Math.min(8, bw / 2)}
+              style={{ fill: `url(#${id}${goal != null && v >= goal ? "m" : "b"})`, animationDelay: `${i * 30}ms` }}>
               <title>{ddmm(dates[i])}: {fmtInt(v, lang)}</title>
             </rect>
           ),

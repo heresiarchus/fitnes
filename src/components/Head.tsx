@@ -1,7 +1,10 @@
 import { type ReactNode, useId, useState } from "react";
+import { Icon, type IconName } from "./Card";
 
 interface Props {
   title: ReactNode;
+  /** Coloured icon before a card title (h2 only). */
+  icon?: IconName;
   /** Explanation hidden behind the "?" button. */
   help?: ReactNode;
   /** Text for the help button instead of "?" (e.g. "How to connect"). */
@@ -14,7 +17,7 @@ interface Props {
 }
 
 /** Heading with optional help text that stays hidden until asked for. */
-export function Head({ title, help, helpLabel, right, sub, as = "h2" }: Props) {
+export function Head({ title, icon, help, helpLabel, right, sub, as = "h2" }: Props) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const btn = help ? (
@@ -46,7 +49,7 @@ export function Head({ title, help, helpLabel, right, sub, as = "h2" }: Props) {
   return (
     <>
       <div className="head-row">
-        <span className="head-line">{as === "h1" ? <h1>{title}</h1> : <h2>{title}</h2>}{!helpLabel && btn}</span>
+        <span className="head-line">{icon && <span className="card-ic"><Icon name={icon} /></span>}{as === "h1" ? <h1>{title}</h1> : <h2>{title}</h2>}{!helpLabel && btn}</span>
         {right}
       </div>
       {sub && <small className="head-sub">{sub}</small>}

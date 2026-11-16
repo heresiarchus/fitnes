@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { useI18n } from "../i18n";
 import { ddmm } from "../lib/date";
 import { fmt, fmtKg } from "../lib/format";
@@ -7,6 +8,7 @@ import type { DaysMap } from "../lib/types";
 const W = 700, H = 230, L = 44, R = 64, T = 14, B = 28;
 
 export function WeightChart({ days, dates }: { days: DaysMap; dates: string[] }) {
+  const id = useId();
   const { t, lang } = useI18n();
   const pts = weightSeries(days, dates);
   if (pts.length < 2) return <p className="empty">{t("chart.weightEmpty")}</p>;
@@ -26,10 +28,15 @@ export function WeightChart({ days, dates }: { days: DaysMap; dates: string[] })
   for (let k = 0; k < dates.length; k += xStep) xTicks.push(k);
   const path = pts.map((p, j) => (j ? "L" : "M") + X(p.i).toFixed(1) + " " + Y(p.avg).toFixed(1)).join(" ");
   const last = pts[pts.length - 1];
+  const area = `${path} L${X(last.i).toFixed(1)} ${H - B} L${X(pts[0].i).toFixed(1)} ${H - B} Z`;
 
   return (
     <div className="chart-wrap">
       <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("chart.weightAria", { v: fmt(last.avg, lang) })}>
+        <defs>
+          <linearGradient id={id + "l"} x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#c4b5fd" /><stop offset="1" stopColor="#7c3aed" /></linearGradient>
+          <linearGradient id={id + "a"} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#8b5cf6" stopOpacity="0.28" /><stop offset="1" stopColor="#8b5cf6" stopOpacity="0" /></linearGradient>
+        </defs>
         {yTicks.map((v) => (
           <g key={v}>
             <line className="grid" x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} />
@@ -44,7 +51,8 @@ export function WeightChart({ days, dates }: { days: DaysMap; dates: string[] })
             <title>{ddmm(p.date)}: {fmtKg(p.v, lang)}</title>
           </circle>
         ))}
-        <path className="avg" d={path} />
+        <path className="area" d={area} style={{ fill: `url(#${id}a)` }} />
+        <path className="avg" d={path} style={{ stroke: `url(#${id}l)` }} />
         <circle className="end" cx={X(last.i)} cy={Y(last.avg)} r={5} />
         <text className="endlabel" x={X(last.i) + 9} y={Y(last.avg) + 4}>{fmt(last.avg, lang)}</text>
       </svg>
