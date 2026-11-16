@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../db";
-import { missingToday, planReminders } from "./reminders";
+import { missingToday, planReminders, styleOf } from "./reminders";
 
 const s = { ...DEFAULT_SETTINGS, reminders: { ...DEFAULT_SETTINGS.reminders, review: { on: false, time: "22:20" } } };
 const hhmm = (d: Date) => `${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -30,5 +30,17 @@ describe("evening notifications", () => {
   it("reports the missing basics", () => {
     expect(missingToday(undefined)).toEqual(["weight", "feel"]);
     expect(missingToday({ date: "d", updatedAt: "x", weight: 130, feel: 3 })).toEqual([]);
+  });
+});
+
+describe("reminder style per repeat", () => {
+  it("defaults to the full screen", () => {
+    expect(styleOf(undefined, 0)).toBe("fullscreen");
+  });
+  it("escalates from two banners to the full screen", () => {
+    expect([0, 1, 2, 5].map((r) => styleOf("escalate", r))).toEqual(["headsup", "headsup", "fullscreen", "fullscreen"]);
+  });
+  it("keeps a fixed style for every repeat", () => {
+    expect([0, 3].map((r) => styleOf("notification", r))).toEqual(["notification", "notification"]);
   });
 });

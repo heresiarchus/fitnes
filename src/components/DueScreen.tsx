@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { saveDay } from "../db";
+import { getSnooze, setSnooze as putSnooze } from "../lib/snooze";
+import { reminderDueClosed } from "../native";
 import { useI18n } from "../i18n";
 import { ddmm, iso } from "../lib/date";
 import { dueItems, type DueItem } from "../lib/due";
@@ -15,9 +17,7 @@ import { ScaleButton } from "./ScaleButton";
 import { Stepper } from "./Stepper";
 import { WeightPicker } from "./WeightPicker";
 
-const SNOOZE_KEY = "fitnes.dueSnoozeUntil";
 const SNOOZE_MIN = 30;
-const getSnooze = () => { try { return Number(localStorage.getItem(SNOOZE_KEY) || 0); } catch { return 0; } };
 
 /**
  * Reminder screen in the spirit of medication apps: once a reminder time has
@@ -33,7 +33,8 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
     const tick = () => { setNow(new Date()); setSnooze(getSnooze()); };
     const id = setInterval(tick, 60 * 1000);
     document.addEventListener("visibilitychange", tick);
-    return () => { clearInterval(id); document.removeEventListener("visibilitychange", tick); };
+    window.addEventListener("fitnes:snooze", tick);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", tick); window.removeEventListener("fitnes:snooze", tick); };
   }, []);
 
   const due = dueItems(settings, days, now);
@@ -46,11 +47,15 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
   const lastBp = previousBp(days, today);
   const last = lastBp?.e1 ?? lastBp?.m1;
 
-  if (!items.length || now.getTime() < snooze) return null;
+  const visible = items.length > 0 && now.getTime() >= snooze;
+  // Opened over the lock screen by a reminder: once done (or put off), stop showing over it.
+  useEffect(() => { if (!visible) reminderDueClosed(); }, [visible]);
+
+  if (!visible) return null;
   const save = (patch: Partial<DayEntry>) => saveDay({ ...day, ...patch, updatedAt: new Date().toISOString() });
   const later = () => {
     const until = Date.now() + SNOOZE_MIN * 60 * 1000;
-    try { localStorage.setItem(SNOOZE_KEY, String(until)); } catch { /* private mode */ }
+    putSnooze(until);
     setSnooze(until);
   };
 

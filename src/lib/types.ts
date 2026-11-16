@@ -106,7 +106,18 @@ export interface Settings {
 
 export type ReminderKind = "weigh" | "evening" | "bp" | "review";
 export const REMINDER_KINDS: ReminderKind[] = ["weigh", "evening", "bp", "review"];
-export interface ReminderCfg { on: boolean; time: string; /** Evening check: last repeat (may be after midnight) and minutes between repeats. */ until?: string; every?: number }
+/** How the evening reminder appears (Android app with the reminder module). */
+export type ReminderStyle = "notification" | "headsup" | "fullscreen" | "escalate";
+export const REMINDER_STYLES: ReminderStyle[] = ["fullscreen", "escalate", "headsup", "notification"];
+export interface ReminderCfg {
+  on: boolean;
+  time: string;
+  /** Evening check: last repeat (may be after midnight) and minutes between repeats. */
+  until?: string;
+  every?: number;
+  /** Evening check only; unset means "fullscreen". */
+  style?: ReminderStyle;
+}
 export type Reminders = Record<ReminderKind, ReminderCfg>;
 
 export type SourceKey = "steps" | "exercise" | "weight" | "bp" | "sleep";

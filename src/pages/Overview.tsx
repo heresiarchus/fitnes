@@ -39,7 +39,7 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
       </header>
       <SyncWarning />
 
-      <section className={"today sky-" + phase} aria-label={t("today.title")}>
+      <section className={"today-card sky-" + phase} aria-label={t("today.title")}>
         <SkyArt phase={phase} />
         <div className="today-h">
           <h2>{t("today.title")}</h2>
