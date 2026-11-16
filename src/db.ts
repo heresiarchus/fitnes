@@ -6,7 +6,8 @@ import { DEFAULT_HABITS, migrateHabits } from "./lib/habits";
 import type { DayEntry, DaysMap, Item, Settings, SheetsConfig, SyncConfig } from "./lib/types";
 
 interface SettingsRow extends Settings { key: "main" }
-type MetaRow = { key: "sync"; value: SyncConfig } | { key: "sheets"; value: SheetsConfig } | { key: "health"; value: HealthState } | { key: "migrations"; value: string[] };
+type MetaRow = { key: "sync"; value: SyncConfig } | { key: "sheets"; value: SheetsConfig } | { key: "health"; value: HealthState } | { key: "migrations"; value: string[] } | { key: "cloud"; value: CloudState };
+export interface CloudState { userId: string; lastServerAt: string | null; synced: Record<string, string>; lastAt?: string }
 export interface HealthState { on: boolean; history?: boolean; lastPullAt?: string; lastFullAt?: string; lastError?: string; lastCount?: number }
 
 export const db = new Dexie("fitnes") as Dexie & {
@@ -134,17 +135,25 @@ export async function deleteAllDays() {
   changed();
 }
 
+const live = <T extends { deleted?: true }>(v: T | undefined) => (v && !v.deleted ? v : undefined);
+
 export async function getSyncConfig(): Promise<SyncConfig | undefined> {
-  return (await db.meta.get("sync"))?.value as SyncConfig | undefined;
+  return live((await db.meta.get("sync"))?.value as SyncConfig | undefined);
 }
 
-export async function setSyncConfig(value: SyncConfig | null) {
-  if (value) await db.meta.put({ key: "sync", value });
-  else await db.meta.delete("sync");
+/**
+ * Sets or removes the GitHub data connection. A user change gets a new timestamp so it
+ * follows the account; `keepStamp` is for the app's own bookkeeping (last sync time).
+ */
+export async function setSyncConfig(value: SyncConfig | null, keepStamp = false) {
+  const now = new Date().toISOString();
+  if (value) await db.meta.put({ key: "sync", value: keepStamp ? value : { ...value, updatedAt: now } });
+  else await db.meta.put({ key: "sync", value: { provider: "github", repo: "", token: "", path: "", deleted: true, updatedAt: now } });
+  if (!keepStamp) changed();
 }
 
 export function useSyncConfig(): SyncConfig | null | undefined {
-  return useLiveQuery(async () => ((await db.meta.get("sync"))?.value as SyncConfig | undefined) ?? null, []);
+  return useLiveQuery(async () => live((await db.meta.get("sync"))?.value as SyncConfig | undefined) ?? null, []);
 }
 
 /** Live (not deleted) items of one kind; undefined while loading. */
@@ -175,16 +184,35 @@ export async function deleteItem(item: Item) {
 }
 
 export async function getSheetsConfig(): Promise<SheetsConfig | undefined> {
-  return (await db.meta.get("sheets"))?.value as SheetsConfig | undefined;
+  return live((await db.meta.get("sheets"))?.value as SheetsConfig | undefined);
 }
 
-export async function setSheetsConfig(value: SheetsConfig | null) {
-  if (value) await db.meta.put({ key: "sheets", value });
-  else await db.meta.delete("sheets");
+export async function setSheetsConfig(value: SheetsConfig | null, keepStamp = false) {
+  const now = new Date().toISOString();
+  if (value) await db.meta.put({ key: "sheets", value: keepStamp ? value : { ...value, updatedAt: now } });
+  else await db.meta.put({ key: "sheets", value: { url: "", deleted: true, updatedAt: now } });
+  if (!keepStamp) changed();
 }
 
 export function useSheetsConfig(): SheetsConfig | null | undefined {
-  return useLiveQuery(async () => ((await db.meta.get("sheets"))?.value as SheetsConfig | undefined) ?? null, []);
+  return useLiveQuery(async () => live((await db.meta.get("sheets"))?.value as SheetsConfig | undefined) ?? null, []);
+}
+
+/** Raw stored connection records (including removals), for account sync. */
+export async function getSecrets(): Promise<Record<string, { updatedAt: string; deleted?: true; [k: string]: unknown }>> {
+  const out: Record<string, { updatedAt: string; deleted?: true; [k: string]: unknown }> = {};
+  const sync = (await db.meta.get("sync"))?.value as SyncConfig | undefined;
+  const sheets = (await db.meta.get("sheets"))?.value as SheetsConfig | undefined;
+  // Only what identifies the connection travels; per-device bookkeeping (last sync time, errors) stays.
+  if (sync?.updatedAt) out.sync = sync.deleted ? { deleted: true, updatedAt: sync.updatedAt } : { provider: sync.provider, repo: sync.repo, token: sync.token, path: sync.path, updatedAt: sync.updatedAt };
+  if (sheets?.updatedAt) out.sheets = sheets.deleted ? { deleted: true, updatedAt: sheets.updatedAt } : { url: sheets.url, updatedAt: sheets.updatedAt };
+  return out;
+}
+
+/** Applies a connection record that came from the account. */
+export async function putSecret(id: string, v: { updatedAt: string; deleted?: true; [k: string]: unknown }) {
+  if (id === "sync") await db.meta.put({ key: "sync", value: v.deleted ? { provider: "github", repo: "", token: "", path: "", deleted: true, updatedAt: v.updatedAt } : (v as unknown as SyncConfig) });
+  if (id === "sheets") await db.meta.put({ key: "sheets", value: v.deleted ? { url: "", deleted: true, updatedAt: v.updatedAt } : (v as unknown as SheetsConfig) });
 }
 
 export async function getHealthState(): Promise<HealthState | undefined> {

@@ -1,6 +1,6 @@
 import { useI18n } from "../i18n";
 import { ddmm } from "../lib/date";
-import { fmt } from "../lib/format";
+import { fmt, fmtKg } from "../lib/format";
 import { weightSeries } from "../lib/stats";
 import type { DaysMap } from "../lib/types";
 
@@ -41,7 +41,7 @@ export function WeightChart({ days, dates }: { days: DaysMap; dates: string[] })
         ))}
         {pts.map((p) => (
           <circle key={p.date} className="dot" cx={X(p.i)} cy={Y(p.v)} r={3.5}>
-            <title>{ddmm(p.date)}: {fmt(p.v, lang)}</title>
+            <title>{ddmm(p.date)}: {fmtKg(p.v, lang)}</title>
           </circle>
         ))}
         <path className="avg" d={path} />

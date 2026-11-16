@@ -1,6 +1,8 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { Link } from "react-router-dom";
 import { db } from "../db";
+import { useSession } from "../cloud/client";
+import { cloudConfigured } from "../cloud/config";
 import { type MessageKey, useI18n } from "../i18n";
 import { useSyncStatus } from "../sync/engine";
 
@@ -43,12 +45,23 @@ export function SyncBadge({ detailed = false }: { detailed?: boolean }) {
 export function SyncWarning() {
   const { t } = useI18n();
   const s = useSyncStatus();
+  const session = useSession();
+  if (session) return null; // signed in: the account keeps devices in step
+  if (cloudConfigured()) {
+    return (
+      <section className="warn-card" role="alert">
+        <b>{t("acc.warnTitle")}</b>
+        <span>{t("acc.warnText")}</span>
+        <Link className="btn block" to="/settings/account">{t("acc.signIn")}</Link>
+      </section>
+    );
+  }
   if (s.state !== "off") return null;
   return (
     <section className="warn-card" role="alert">
       <b>{t("sync.warnTitle")}</b>
       <span>{t("sync.warnText")}</span>
-      <Link className="btn block" to="/settings">{t("sync.warnBtn")}</Link>
+      <Link className="btn block" to="/settings/connect">{t("sync.warnBtn")}</Link>
     </section>
   );
 }

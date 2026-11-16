@@ -68,7 +68,7 @@ async function runOnce() {
     const next = { ...cfg, lastSyncAt: started };
     // Config may have been changed or removed while syncing.
     const cur = await getSyncConfig();
-    if (cur && cur.repo === cfg.repo && cur.token === cfg.token) await setSyncConfig(next);
+    if (cur && cur.repo === cfg.repo && cur.token === cfg.token) await setSyncConfig(next, true);
     setStatus({ state: "idle", lastSyncAt: started });
   } catch (e) {
     const code = e instanceof SyncError ? e.code : "http";

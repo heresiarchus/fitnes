@@ -34,7 +34,7 @@ export function parseHistory(text: string, existing: DaysMap, now = new Date()):
     for (const [date, w] of best) {
       const d = existing[date];
       if (d?.weight != null) continue;
-      const next: DayEntry = { ...(d ?? { date }), date, weight: Math.round(w.kg * 10) / 10, weightCond: "other", updatedAt: stamp };
+      const next: DayEntry = { ...(d ?? { date }), date, weight: Math.round(w.kg * 100) / 100, weightCond: "other", updatedAt: stamp };
       if (w.origin) next.weightOrigin = w.origin;
       delete next.noWeight;
       days.push(next);

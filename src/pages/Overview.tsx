@@ -13,7 +13,7 @@ import { PeriodNav } from "../components/PeriodNav";
 import { updateSettings } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import { addDays, ddmm, iso, rangeDates, weekDates } from "../lib/date";
-import { fmt, fmtInt } from "../lib/format";
+import { fmtInt, fmtKg } from "../lib/format";
 import { periodStats } from "../lib/stats";
 import type { DaysMap, Phase, Settings } from "../lib/types";
 
@@ -40,7 +40,7 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
           <span className="today-date">{new Date().toLocaleDateString(lang === "uk" ? "uk-UA" : "en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
         </div>
         <ul className="today-items">
-          {!settings.hideWeight && <li><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmt(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></li>}
+          {!settings.hideWeight && <li><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmtKg(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></li>}
           <li><span>{t("cal.day.steps")}</span><b>{td?.steps != null ? fmtInt(td.steps, lang) : t("today.none")}</b></li>
           <li><span>{t("cal.day.walk")}</span><b>{td?.walkMin ? `${td.walkMin} ${t("common.min")}` : t("today.none")}</b></li>
           <li><span>{t("form.feeling")}</span><b>{td?.feel != null ? `${td.feel} / 5` : td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></li>

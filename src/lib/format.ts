@@ -21,3 +21,10 @@ export function monthName(isoDate: string, lang: Lang): string {
   const [y, m] = isoDate.split("-").map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString(locale(lang), { month: "long", year: "numeric" });
 }
+
+/** Weight as the scale shows it: one decimal, or two when the scale measured hundredths (135,45). */
+export function fmtKg(kg: number | null | undefined, lang: Lang, min = 1): string {
+  if (kg == null || Number.isNaN(kg)) return "—";
+  const hundredths = Math.round(kg * 100) % 10 !== 0;
+  return fmt(kg, lang, hundredths ? 2 : min);
+}

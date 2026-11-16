@@ -4,6 +4,7 @@ import { App } from "./App";
 import "./styles.css";
 import { startAutoSync } from "./sync/engine";
 import { runMigrations } from "./db";
+import { startCloudSync } from "./cloud/sync";
 import { startAutoSheets } from "./sync/sheets";
 import { startAutoHealth } from "./health";
 
@@ -12,6 +13,7 @@ navigator.storage?.persist?.().catch(() => {});
 
 void runMigrations();
 startAutoSync();
+startCloudSync();
 startAutoSheets();
 startAutoHealth();
 

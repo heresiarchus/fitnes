@@ -42,7 +42,7 @@ async function run(): Promise<SheetsResult> {
   }
   const cur = await getSheetsConfig();
   if (cur?.url === cfg.url) {
-    await setSheetsConfig(result === "error" ? { ...cur, lastError: error ?? "error" } : { url: cur.url, lastSentAt: new Date().toISOString() });
+    await setSheetsConfig(result === "error" ? { ...cur, lastError: error ?? "error" } : { url: cur.url, updatedAt: cur.updatedAt, lastSentAt: new Date().toISOString() }, true);
   }
   return result;
 }

@@ -3,7 +3,7 @@ import { saveDay } from "../db";
 import { useI18n } from "../i18n";
 import { ddmm, iso } from "../lib/date";
 import { dueItems, type DueItem } from "../lib/due";
-import { fmt, num } from "../lib/format";
+import { fmtKg, num } from "../lib/format";
 import { withMark } from "../lib/habits";
 import { previousBp, previousWeight } from "../lib/stats";
 import type { DayEntry, DaysMap, Habit, Settings } from "../lib/types";
@@ -60,10 +60,10 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
       return (
         <Card key="w" icon="weight" title={t("form.weight")}>
           <WeightPicker value={value} onChange={setW} />
-          <ScaleButton onWeight={(kg) => setW(kg.toFixed(1))} />
+          <ScaleButton onWeight={(kg) => setW(String(kg))} />
           <div className="pill-row">
             <button type="button" className="primary compact" onClick={() => { const v = num(value); if (v) void save({ weight: v, weightCond: "other" }); }}>
-              {t("due.save")} {value ? fmt(num(value), lang) : ""}
+              {t("due.save")} {value ? fmtKg(num(value), lang) : ""}
             </button>
             <button type="button" className="pill" onClick={() => void save({ noWeight: true })}>{t("form.weightRemove")}</button>
           </div>

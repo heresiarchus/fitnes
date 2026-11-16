@@ -1,7 +1,7 @@
 import { pullHealth } from "../health";
 import { useHealthState } from "../db";
 import { useI18n } from "../i18n";
-import { fmt, fmtInt } from "../lib/format";
+import { fmtInt, fmtKg } from "../lib/format";
 import { bpSummary } from "../lib/stats";
 import type { DayEntry, Settings } from "../lib/types";
 import { fromWatch } from "../lib/types";
@@ -23,7 +23,7 @@ export function SamsungCard({ entry, settings, onNoWeight }: { entry: DayEntry |
     tiles.push([t("cal.day.walk"), entry?.walkMin ? `${entry.walkMin} ${t("common.min")}` : null]);
     if (entry?.cardioMin) tiles.push([entry.cardioWhat || t("cal.day.cardio"), `${entry.cardioMin} ${t("common.min")}`]);
   }
-  if (on("weight")) tiles.push([t("cal.day.weight"), entry?.weight != null ? `${fmt(entry.weight, lang)} ${t("common.kg")}` : entry?.noWeight ? t("form.noWeightChosen") : null]);
+  if (on("weight")) tiles.push([t("cal.day.weight"), entry?.weight != null ? `${fmtKg(entry.weight, lang)} ${t("common.kg")}` : entry?.noWeight ? t("form.noWeightChosen") : null]);
   if (on("bp")) tiles.push([t("cal.day.bp"), bpText || null]);
   if (on("sleep")) {
     tiles.push([t("cal.day.sleep"), entry?.sleepMin ? `${Math.floor(entry.sleepMin / 60)}:${String(entry.sleepMin % 60).padStart(2, "0")}` : null]);
