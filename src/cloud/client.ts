@@ -5,6 +5,9 @@ import { isNative } from "../native";
 import { cloudConfigured, SUPABASE_KEY, SUPABASE_URL } from "./config";
 
 let client: SupabaseClient | null = null;
+let linkFailed = false;
+/** The sign-in link from the email didn't work (opened in another browser, expired or used twice). */
+export const loginLinkFailed = () => linkFailed;
 
 /** The account client, or null while no account server is configured. */
 export function cloud(): SupabaseClient | null {
@@ -12,14 +15,31 @@ export function cloud(): SupabaseClient | null {
   client ??= createClient(SUPABASE_URL, SUPABASE_KEY, {
     auth: { flowType: "pkce", persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
+  if (!isNative) {
+    // Back from the email link or Google: ?code=… is exchanged by the client; tidy the address after.
+    const q = new URLSearchParams(location.search);
+    if (q.has("code") || q.has("error_description")) {
+      const c = client;
+      void c.auth.getSession().then(({ data }) => {
+        linkFailed = !data.session;
+        history.replaceState(null, "", location.pathname + (linkFailed ? "#/settings/account" : location.hash));
+        if (linkFailed) dispatchEvent(new HashChangeEvent("hashchange"));
+      });
+    }
+  }
   return client;
 }
 
-/** Sends a one-time sign-in code to the email (the account is created on first use). */
+const redirectTo = () => (isNative ? NATIVE_REDIRECT : location.origin + location.pathname);
+
+/**
+ * Sends the sign-in email (the account is created on first use). Supabase's standard letter
+ * has a link — opening it on the same device signs in; a letter with a code works too.
+ */
 export async function sendCode(email: string): Promise<string | null> {
   const c = cloud();
   if (!c) return "not configured";
-  const { error } = await c.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
+  const { error } = await c.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true, emailRedirectTo: redirectTo() } });
   return error ? error.message : null;
 }
 
@@ -41,7 +61,7 @@ export async function signInGoogle(): Promise<string | null> {
   const c = cloud();
   if (!c) return "not configured";
   if (!isNative) {
-    const { error } = await c.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } });
+    const { error } = await c.auth.signInWithOAuth({ provider: "google", options: { redirectTo: redirectTo() } });
     return error ? error.message : null;
   }
   const { data, error } = await c.auth.signInWithOAuth({ provider: "google", options: { redirectTo: NATIVE_REDIRECT, skipBrowserRedirect: true } });
@@ -50,12 +70,13 @@ export async function signInGoogle(): Promise<string | null> {
   return null;
 }
 
-/** Completes a Google sign-in that returned to the app as app.fitnes.journal://auth?code=… */
+/** Completes a sign-in (email link or Google) that returned to the app as app.fitnes.journal://auth?code=… */
 export async function finishNativeLogin(url: string) {
   const c = cloud();
   const code = new URL(url.replace(/^app\.fitnes\.journal:\/\//, "https://x/")).searchParams.get("code");
-  if (!c || !code) return;
-  await c.auth.exchangeCodeForSession(code);
+  if (!c) return;
+  const { error } = code ? await c.auth.exchangeCodeForSession(code) : { error: true };
+  linkFailed = !!error;
   await Browser.close().catch(() => {});
 }
 
