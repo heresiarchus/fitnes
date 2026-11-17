@@ -40,7 +40,7 @@ const PAL_SWATCH: Record<Palette, string[]> = {"mint": ["#0f766e", "#d6f1ea", "#
    "coral": ["#c2410c", "#fae4db", "#fdba74", "#1e1815"],
    "olive": ["#4d7c0f", "#edfadb", "#bef264", "#1a1d16"],
    "indigo": ["#4338ca", "#dbdffa", "#a5b4fc", "#16171d"]};
-import { APK_URL, askNotifications, isNative, newerShell, notificationsAllowed } from "../native";
+import { APK_URL, askNotifications, isNative, newerShell, notificationsAllowed, openSamsungHealth } from "../native";
 import { checkForUpdate } from "../components/PwaPrompt";
 
 type Status = { text: string; kind?: "ok" | "err" };
@@ -282,6 +282,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
               {health?.on ? (
                 <>
                   <button type="button" className="primary" onClick={() => { setHcMsg({ text: "…" }); void pullHealth(30).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.pullNow")}</button>
+                  <button type="button" onClick={() => void openSamsungHealth()}>{t("hf.openSh")}</button>
                   <button type="button" onClick={() => { setHcMsg({ text: t("hc.historyLoading") }); void connectHealth().then(() => pullHealth(HISTORY_DAYS)).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.history")}</button>
                   <button type="button" onClick={() => { setDiag(null); void diagnoseHealth().then(setDiag); void todayHealth().then(setSteps).catch(() => setSteps(null)); }}>{t("hc.diag")}</button>
                   <button type="button" onClick={() => void openHealthSettings()}>{t("hc.permissions")}</button>

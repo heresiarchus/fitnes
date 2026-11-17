@@ -3,19 +3,17 @@ import { useHealthState } from "../db";
 import { pullHealth } from "../health";
 import { useI18n } from "../i18n";
 import { iso } from "../lib/date";
-import { isNative, openSamsungHealth } from "../native";
+import { isNative } from "../native";
 
 /**
- * How fresh the watch data is. Samsung Health passes data to Health Connect with a delay
- * (it batches, or waits until it is opened), so the app can only show what has arrived:
- * "Samsung data up to 20:40, checked 21:05", a refresh button, and a nudge to open
- * Samsung Health when its data is old.
+ * A small round button in the corner of the Today card: pulls fresh data from Samsung Health
+ * (through Health Connect). It spins while working and shows a tick when done; how fresh the
+ * data is sits in its label for screen readers and a long press.
  */
-export function HealthFreshness() {
+export function HealthRefresh() {
   const { t, lang } = useI18n();
   const st = useHealthState();
-  const [busy, setBusy] = useState(false);
-  const [tip, setTip] = useState(false);
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   if (!isNative || !st?.on) return null;
   const loc = lang === "uk" ? "uk-UA" : "en-GB";
   const at = (x?: string) => {
@@ -24,16 +22,17 @@ export function HealthFreshness() {
     const time = d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
     return iso(d) === iso(new Date()) ? time : `${d.toLocaleDateString(loc, { day: "numeric", month: "short" })} ${time}`;
   };
-  const stale = !st.lastDataAt || Date.now() - Date.parse(st.lastDataAt) > 45 * 60 * 1000;
-  const refresh = async () => { setBusy(true); try { await pullHealth(2); } finally { setBusy(false); } };
+  const label = t("hf.line", { data: at(st.lastDataAt), pulled: at(st.lastPullAt) });
+  const refresh = async () => {
+    if (state === "busy") return;
+    setState("busy");
+    try { await pullHealth(2); } finally { setState("done"); setTimeout(() => setState("idle"), 1600); }
+  };
   return (
-    <div className="hfresh">
-      <span>{t("hf.line", { data: at(st.lastDataAt), pulled: at(st.lastPullAt) })}</span>
-      <div className="hfresh-b">
-        <button type="button" className="compact" disabled={busy} onClick={() => void refresh()}>{busy ? t("hf.busy") : t("hf.refresh")}</button>
-        {stale && <button type="button" className="compact" onClick={() => { setTip(true); void openSamsungHealth(); }}>{t("hf.openSh")}</button>}
-      </div>
-      {(stale || tip) && <small>{t("hf.tip")}</small>}
-    </div>
+    <button type="button" className={"hrefresh " + state} aria-label={`${t("hf.refresh")} · ${label}`} title={label} onClick={() => void refresh()}>
+      {state === "done"
+        ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>}
+    </button>
   );
 }

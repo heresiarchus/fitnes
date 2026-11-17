@@ -2,7 +2,7 @@ import { Health } from "@capgo/capacitor-health";
 import { db, getHealthState, getSettings, saveDays, saveItems, setHealthState, updateSettings } from "./db";
 import { makeT, type MessageKey } from "./i18n";
 import { addDays } from "./lib/date";
-import { activeFromTotal, dayRanges, type HcAggregate, type HcSample, type HcWorkout, isSamsung, type KcalRecord, latestSamsung, mapHealth, samsungDay, type StepDay, type StepRecord, workoutItem } from "./lib/healthMap";
+import { activeFromTotal, samsungTotal, dayRanges, type HcAggregate, type HcSample, type HcWorkout, isSamsung, type KcalRecord, latestSamsung, mapHealth, samsungDay, type StepDay, type StepRecord, workoutItem } from "./lib/healthMap";
 import { applySamsung } from "./lib/samsung";
 import type { DayEntry, DaysMap, Settings, SourceKey } from "./lib/types";
 import { SOURCE_KEYS } from "./lib/types";
@@ -54,13 +54,20 @@ async function aggregateDay(start: Date, end: Date, dataType: "steps" | "calorie
   return x.samples.reduce((a, b) => a + (b.value || 0), 0);
 }
 
-/** Per-day totals for calories or distance (midnight to midnight). */
+/**
+ * Per-day totals for calories or distance (midnight to midnight), from Samsung's own records
+ * like steps. Health Connect's merged total is only the fallback: for active calories it came
+ * back empty on the owner's phone although Samsung had written 135 records.
+ */
 async function readDailyTotals(dataType: "calories" | "distance", days: number): Promise<HcAggregate[]> {
   const ranges = dayRanges(new Date(), days);
   const out: HcAggregate[] = [];
-  for (let i = 0; i < ranges.length; i += 6) {
-    const batch = ranges.slice(i, i + 6);
-    const res = await Promise.all(batch.map((r) => aggregateDay(r.start, r.end, dataType)));
+  for (let i = 0; i < ranges.length; i += 4) {
+    const batch = ranges.slice(i, i + 4);
+    const res = await Promise.all(batch.map(async (r) => {
+      const recs = (await Health.readSamples({ dataType, startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as StepRecord[];
+      return samsungTotal(recs) ?? (await aggregateDay(r.start, r.end, dataType));
+    }));
     res.forEach((v, j) => out.push({ startDate: batch[j].start.toISOString(), value: v }));
   }
   return out;
@@ -160,7 +167,7 @@ export async function todayHealth(): Promise<{ day: StepDay | null; merged: numb
   const r = dayRanges(new Date(), 1)[0];
   const recs = (await Health.readSamples({ dataType: "steps", startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as StepRecord[];
   const safe = async <T,>(f: () => Promise<T>, d: T) => { try { return await f(); } catch { return d; } };
-  const active = await safe(() => aggregateDay(r.start, r.end, "calories"), 0);
+  const active = await safe(async () => samsungTotal((await Health.readSamples({ dataType: "calories", startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as StepRecord[]) ?? 0, 0);
   const totalRecs = await safe(async () => (await Health.readSamples({ dataType: "totalCalories", startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as KcalRecord[], [] as KcalRecord[]);
   const bmr = await safe(latestBmr, null);
   const own = totalRecs.filter((x) => isSamsung(x.sourceName));

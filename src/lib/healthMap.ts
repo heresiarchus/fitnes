@@ -81,8 +81,10 @@ export interface StepRecord { startDate: string; endDate: string; value: number;
 
 export const isSamsung = (source: string | undefined) => !!source && /shealth|samsung/i.test(source);
 
-/** Steps per minute from which a minute counts as active (a slow walk is ~60–90, brisk ≥ 100). */
-export const ACTIVE_SPM = 60;
+/** Steps per minute from which a minute counts as active (an easy walk is ~60–90, brisk ≥ 100). */
+export const ACTIVE_SPM = 40;
+/** At most this much is added for steps that reach Health Connect only in the daily total. */
+const MAX_ACTIVE_SCALE = 1.5;
 
 export interface StepDay {
   steps: number;
@@ -136,6 +138,9 @@ export function samsungDay(records: StepRecord[]): StepDay | null {
   let steps = 0, activeMin = 0;
   best.forEach((v) => { steps += v; if (v >= ACTIVE_SPM) activeMin++; });
   Object.keys(byDevice).forEach((k) => (byDevice[k] = Math.round(byDevice[k])));
+  // The watch's own steps may reach Health Connect only inside Samsung's daily total, without
+  // minute records: count them as active in the same share as the steps we can see (capped).
+  if (dayTotal && steps > 0 && dayTotal > steps) activeMin = Math.round(activeMin * Math.min(MAX_ACTIVE_SCALE, dayTotal / steps));
   return { steps: Math.round(dayTotal ?? steps), dayTotal, activeMin, byDevice };
 }
 
@@ -173,6 +178,12 @@ export function activeFromTotal(records: KcalRecord[], bmrPerDay: number | null,
   if (perMin == null) return null;
   return Math.max(0, Math.round(total - perMin * ((lastEnd - t0) / 60_000)));
 }
+
+/**
+ * Samsung's total of an additive quantity for one day (active calories, distance): its daily
+ * summary record when there is one, else the records merged per device and minute like steps.
+ */
+export const samsungTotal = (records: StepRecord[]): number | null => samsungDay(records)?.steps ?? null;
 
 /** The day's step total (see samsungDay). */
 export const samsungSteps = (records: StepRecord[]): number | null => samsungDay(records)?.steps ?? null;

@@ -52,7 +52,8 @@ describe("Samsung Health step total", () => {
     const day = samsungDay(recs)!;
     expect(day.steps).toBeGreaterThanOrEqual(3000);
     expect(day.steps).toBeLessThanOrEqual(3045);
-    expect(day.activeMin).toBe(30);
+    // 30 walking minutes, plus the phone's last half-minute spilling into minute 31 (45 steps).
+    expect(day.activeMin).toBe(31);
     expect(day.byDevice).toEqual({ watch: 3000, phone: 2700 });
   });
   it("takes Samsung's own daily total when it writes one", () => {
@@ -62,11 +63,13 @@ describe("Samsung Health step total", () => {
     const day = samsungDay([daily, ...walk])!;
     expect(day.steps).toBe(8261);
     expect(day.dayTotal).toBe(8261);
-    expect(day.activeMin).toBe(30);
+    // 30 walking minutes seen; steps known only from the daily total add up to half again.
+    expect(day.activeMin).toBe(45);
     expect(latestSamsung([daily, ...walk])).toBe("2026-11-12T10:30:00Z");
   });
   it("drops exact duplicates and counts active minutes", () => {
     const r = { ...rec("12:00", "12:10", 950), deviceType: "watch" };
+    // 95 a minute is active, 5 a minute (300 over an hour) is not.
     expect(samsungDay([r, { ...r }, { ...rec("13:00", "14:00", 300), deviceType: "watch" }])).toMatchObject({ steps: 1250, activeMin: 10 });
   });
   it("returns null when Samsung Health wrote nothing", () => {
