@@ -8,6 +8,8 @@ import { HabitsToday } from "../components/HabitsToday";
 import { QuestionsCard } from "../components/QuestionsCard";
 import { GoalsCard } from "../components/GoalsCard";
 import { Head } from "../components/Head";
+import { WeeklySummary } from "../components/WeeklySummary";
+import { HeightPrompt } from "../components/HeightPrompt";
 import { dayPhase, Logo, SkyArt } from "../components/Brand";
 import { TasksCard } from "../components/TasksCard";
 import { PeriodNav } from "../components/PeriodNav";
@@ -46,14 +48,16 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
           <span className="today-date">{new Date().toLocaleDateString(lang === "uk" ? "uk-UA" : "en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
         </div>
         <ul className="today-items">
-          {!settings.hideWeight && <li className="t-weight"><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmtKg(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></li>}
-          <li className="t-steps"><span>{t("cal.day.steps")}</span><b>{td?.steps != null ? fmtInt(td.steps, lang) : t("today.none")}</b></li>
-          <li className="t-move"><span>{t("cal.day.walk")}</span><b>{td?.walkMin ? `${td.walkMin} ${t("common.min")}` : t("today.none")}</b></li>
-          <li className="t-feel"><span>{t("form.feeling")}</span><b>{td?.feel != null ? `${td.feel} / 5` : td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></li>
+          {!settings.hideWeight && <li className="t-weight"><Link to="/m/weight"><span>{t("cal.day.weight")}</span><b>{td?.weight != null ? `${fmtKg(td.weight, lang)} ${t("common.kg")}` : t("today.none")}</b></Link></li>}
+          <li className="t-steps"><Link to="/m/steps"><span>{t("cal.day.steps")}</span><b>{td?.steps != null ? fmtInt(td.steps, lang) : t("today.none")}</b></Link></li>
+          <li className="t-move"><Link to="/m/active"><span>{t("cal.day.walk")}</span><b>{td?.walkMin ? `${td.walkMin} ${t("common.min")}` : t("today.none")}</b></Link></li>
+          <li className="t-feel"><Link to="/m/feel"><span>{t("form.feeling")}</span><b>{td?.feel != null ? `${td.feel} / 5` : td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></Link></li>
         </ul>
         <Link className={"btn block" + (td ? "" : " invite")} to="/log">{td ? t("today.more") : t("today.fill")}</Link>
       </section>
 
+      <WeeklySummary days={days} settings={settings} />
+      <HeightPrompt settings={settings} hasData={Object.keys(days).length > 0} />
       <GoalsCard settings={settings} day={td} />
       <QuestionsCard />
       <HabitsToday days={days} settings={settings} />
@@ -82,15 +86,18 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
         )}
       </section>
 
-      <Link className="btn block" to="/reports">{t("more.reports")} →</Link>
+      <div className="actions">
+        <Link className="btn" to="/more">{t("more.allTitle")} →</Link>
+        <Link className="btn" to="/reports">{t("more.reports")} →</Link>
+      </div>
 
       <section className="block" data-c="weight">
-        <Head icon="weight" title={t("chart.weight")} help={t("chart.weightLegend")} />
+        <Head icon="weight" title={<Link className="tap-title" to="/m/weight">{t("chart.weight")} ›</Link>} help={t("chart.weightLegend")} />
         <WeightChart days={days} dates={chartDates} />
       </section>
 
       <section className="block" data-c="steps">
-        <Head icon="watch" title={t("chart.steps")} help={settings.stepGoal != null ? t("chart.stepsLegend") : undefined} />
+        <Head icon="watch" title={<Link className="tap-title" to="/m/steps">{t("chart.steps")} ›</Link>} help={settings.stepGoal != null ? t("chart.stepsLegend") : undefined} />
         <StepsChart days={days} dates={dates} goal={settings.stepGoal} />
       </section>
     </>

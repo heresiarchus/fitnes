@@ -16,11 +16,15 @@ const pages = {
   calendar: () => import("./pages/CalendarPage"),
   reports: () => import("./pages/Reports"),
   settings: () => import("./pages/SettingsPage"),
+  metric: () => import("./pages/MetricPage"),
+  more: () => import("./pages/MorePage"),
 };
 const DiaryPage = lazy(() => pages.diary().then((m) => ({ default: m.DiaryPage })));
 const CalendarPage = lazy(() => pages.calendar().then((m) => ({ default: m.CalendarPage })));
 const Reports = lazy(() => pages.reports().then((m) => ({ default: m.Reports })));
 const SettingsPage = lazy(() => pages.settings().then((m) => ({ default: m.SettingsPage })));
+const MetricPage = lazy(() => pages.metric().then((m) => ({ default: m.MetricPage })));
+const MorePage = lazy(() => pages.more().then((m) => ({ default: m.MorePage })));
 const preload = () => Object.values(pages).forEach((load) => void load());
 import { askNotifications, isNative, listenNativeOpens, syncReminders, updateWidget } from "./native";
 
@@ -87,6 +91,9 @@ function Shell() {
             <Route path="/reports" element={<Reports days={days} settings={settings} />} />
             <Route path="/settings" element={<SettingsPage days={days} settings={settings} />} />
             <Route path="/settings/:cat" element={<SettingsPage days={days} settings={settings} />} />
+            <Route path="/m/:id" element={<MetricPage days={days} settings={settings} />} />
+            <Route path="/more" element={<MorePage days={days} settings={settings} />} />
+            <Route path="/more/:area" element={<MorePage days={days} settings={settings} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </Suspense>

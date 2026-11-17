@@ -23,11 +23,11 @@ export function GoalsCard({ settings, day }: { settings: Settings; day: DayEntry
         {goals.map((g) => {
           const def = GOAL_DEFS.find((d) => d.metric === g.metric)!;
           return (
-            <div className={"goal" + (g.done ? " done" : "")} key={g.metric} data-c={g.metric}>
+            <Link className={"goal" + (g.done ? " done" : "")} key={g.metric} data-c={g.metric} to={`/m/${g.metric === "steps" ? "steps" : g.metric === "sleepH" ? "sleep" : "active"}`}>
               <GradientRing pct={g.pct} done={g.done} metric={g.metric} label={g.done ? "✓" : `${g.pct}%`} />
               <b>{show(g.metric, g.value)}</b>
               <small>{t(`goal.${g.metric}` as MessageKey)} · {show(g.metric, g.target)}{def.unit ? ` ${def.unit}` : ""}</small>
-            </div>
+            </Link>
           );
         })}
       </div>
