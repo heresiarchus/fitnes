@@ -1046,7 +1046,7 @@ export const uk = {
   "doc.copied": "Скопійовано",
   "an.same": "без змін",
   "hf.line": "Samsung Health: кроки до {data} · перевірено {pulled}",
-  "hf.refresh": "⟳ Оновити",
+  "hf.refresh": "Оновити дані з годинника",
   "hf.busy": "Оновлюю…",
   "hf.openSh": "Відкрити Samsung Health",
   "hf.tip": "Samsung Health передає кроки в застосунок із затримкою. Відкрий його на хвилину (він надішле свіжі дані), повернись і натисни «Оновити».",

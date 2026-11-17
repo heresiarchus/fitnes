@@ -1048,7 +1048,7 @@ export const en: Record<MessageKey, string> = {
   "doc.copied": "Copied",
   "an.same": "no change",
   "hf.line": "Samsung Health: steps up to {data} · checked {pulled}",
-  "hf.refresh": "⟳ Refresh",
+  "hf.refresh": "Refresh data from the watch",
   "hf.busy": "Refreshing…",
   "hf.openSh": "Open Samsung Health",
   "hf.tip": "Samsung Health hands steps over with a delay. Open it for a minute (it sends fresh data), come back and tap Refresh.",
