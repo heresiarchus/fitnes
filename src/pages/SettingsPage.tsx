@@ -10,7 +10,7 @@ import { Link, useParams } from "react-router-dom";
 import { SettingsMenu } from "./SettingsMenu";
 import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useHealthState, useSheetsConfig, useSyncConfig } from "../db";
 import { parseHistory } from "../lib/history";
-import { connectHealth, diagnoseHealth, disconnectHealth, HISTORY_DAYS, openHealthSettings, pullHealth, todayHealth, type TypeReport } from "../health";
+import { connectHealth, diagnoseHealth, disconnectHealth, healthReport, HISTORY_DAYS, openHealthSettings, pullHealth, todayHealth, type TypeReport } from "../health";
 import { makePairCode, readPairCode } from "../sync/pair";
 import { GOAL_DEFS } from "../lib/goals";
 import { type NearbyDevice, scanNearby } from "../scale";
@@ -131,6 +131,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const [scanning, setScanning] = useState(false);
   const fmtKg = (kg: number) => (Math.round(kg * 10) / 10).toFixed(1).replace(".", settings.lang === "uk" ? "," : ".");
   const [steps, setSteps] = useState<Awaited<ReturnType<typeof todayHealth>> | null>(null);
+  const [reportMsg, setReportMsg] = useState("");
   async function hcConnect() {
     setHcMsg({ text: "…" });
     const r = await connectHealth();
@@ -310,6 +311,10 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
                     <li className="status">{t("hc.t.compare")}</li>
                   </ul>
                 )}
+                {steps && (
+                  <button type="button" className="primary" onClick={() => void healthReport().then((r) => navigator.clipboard.writeText(r).then(() => setReportMsg(t("hc.report.copied")), () => setReportMsg(r)))}>{t("hc.report")}</button>
+                )}
+                {reportMsg && <p className="status ok" style={{ margin: 0, whiteSpace: "pre-wrap" }}>{reportMsg}</p>}
                 {steps && steps.day != null && steps.merged < steps.day.steps && <p className="help-text">{t("hc.priority")}</p>}
                 <p className="status" style={{ margin: 0 }}>{t("hc.diag.hint")}</p>
               </div>

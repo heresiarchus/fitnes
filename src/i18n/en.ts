@@ -1086,4 +1086,6 @@ export const en: Record<MessageKey, string> = {
   "hc.diag.type.calories": "Active calories",
   "hc.diag.type.distance": "Distance",
   "hc.diag.type.heartRate": "Heart rate",
+  "hc.report": "Copy a report for Claude",
+  "hc.report.copied": "Report copied. Paste it into the chat with Claude — it holds only today's numbers from Health Connect.",
 };

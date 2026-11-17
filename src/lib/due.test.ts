@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../db";
 import { dueItems, eveningDay } from "./due";
-import { activeFromTotal, samsungDay, samsungSteps, type StepRecord } from "./healthMap";
+import { activeFromTotal, latestSamsung, samsungDay, samsungSteps, type StepRecord } from "./healthMap";
 
 const SH = "com.sec.android.app.shealth";
 
@@ -54,6 +54,16 @@ describe("Samsung Health step total", () => {
     expect(day.steps).toBeLessThanOrEqual(3045);
     expect(day.activeMin).toBe(30);
     expect(day.byDevice).toEqual({ watch: 3000, phone: 2700 });
+  });
+  it("takes Samsung's own daily total when it writes one", () => {
+    // A running total for the whole day (8 261) next to the watch's minute records.
+    const daily = { ...rec("00:00", "23:59", 8261), deviceType: "phone" };
+    const walk = Array.from({ length: 30 }, (_, m) => ({ ...rec(`10:${String(m).padStart(2, "0")}`, `10:${String(m + 1).padStart(2, "0")}`.replace("10:30", "10:30"), 100), deviceType: "watch" }));
+    const day = samsungDay([daily, ...walk])!;
+    expect(day.steps).toBe(8261);
+    expect(day.dayTotal).toBe(8261);
+    expect(day.activeMin).toBe(30);
+    expect(latestSamsung([daily, ...walk])).toBe("2026-11-12T10:30:00Z");
   });
   it("drops exact duplicates and counts active minutes", () => {
     const r = { ...rec("12:00", "12:10", 950), deviceType: "watch" };

@@ -109,6 +109,52 @@ async function estimateActiveKcal(days: number, have: HcAggregate[] | undefined,
   return out;
 }
 
+/**
+ * A plain-text report of what Health Connect holds for today, to paste to Claude: who writes
+ * steps and calories, how long their records are, a few raw records and what the app makes of
+ * them. Only today's numbers; nothing leaves the phone unless the person pastes it.
+ */
+export async function healthReport(): Promise<string> {
+  const r = dayRanges(new Date(), 1)[0];
+  const at = (x: string) => new Date(x).toTimeString().slice(0, 5);
+  const mins = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 60000);
+  const lines: string[] = [`Fitnes · Health Connect report · ${new Date().toISOString().slice(0, 16)}`];
+  const granted = new Set((await Health.checkAuthorization({ read: ALL, write: [] })).readAuthorized as string[]);
+  lines.push(`Permissions: ${ALL.map((t) => `${t}${granted.has(t) ? "+" : "-"}`).join(" ")}`);
+  const read = async (dataType: HType) => {
+    try { return (await Health.readSamples({ dataType, startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as (StepRecord & { deviceType?: string })[]; } catch (e) { lines.push(`${dataType}: error ${(e as Error).message}`); return []; }
+  };
+  const describe = (name: string, recs: (StepRecord & { deviceType?: string })[]) => {
+    const groups = new Map<string, typeof recs>();
+    recs.forEach((x) => { const k = `${x.sourceName ?? "?"} / ${x.deviceType ?? "?"}`; groups.set(k, [...(groups.get(k) ?? []), x]); });
+    lines.push(`${name}: ${recs.length} records`);
+    groups.forEach((g, k) => {
+      const d = g.map((x) => mins(x.startDate, x.endDate));
+      lines.push(`  ${k}: n=${g.length} sum=${Math.round(g.reduce((a, b) => a + b.value, 0))} dur=${Math.min(...d)}–${Math.max(...d)} min`);
+    });
+    [...recs].sort((a, b) => b.endDate.localeCompare(a.endDate)).slice(0, 8).forEach((x) =>
+      lines.push(`    ${at(x.startDate)}–${at(x.endDate)} (${mins(x.startDate, x.endDate)} min) ${Math.round(x.value)} ${x.deviceType ?? "?"} ${x.sourceName ?? "?"}`));
+  };
+  const steps = granted.has("steps") ? await read("steps") : [];
+  describe("Steps", steps);
+  const day = samsungDay(steps);
+  let merged = 0;
+  try { merged = await aggregateDay(r.start, r.end); } catch { /* shown as 0 */ }
+  lines.push(`  App: steps=${day?.steps ?? "—"} dayTotal=${day?.dayTotal ?? "—"} activeMin=${day?.activeMin ?? "—"} byDevice=${JSON.stringify(day?.byDevice ?? {})} · HC merged=${merged}`);
+  if (granted.has("calories")) describe("Active calories", await read("calories"));
+  const total = granted.has("totalCalories") ? await read("totalCalories") : [];
+  if (granted.has("totalCalories")) describe("Total calories", total);
+  let bmr: number | null = null;
+  if (granted.has("basalCalories")) { try { bmr = await latestBmr(); } catch { /* none */ } }
+  lines.push(`  BMR=${bmr ?? "—"} · active estimate=${activeFromTotal(total as KcalRecord[], bmr, r.start) ?? "—"}`);
+  if (granted.has("distance")) describe("Distance (m)", await read("distance"));
+  try {
+    const w = (await Health.queryWorkouts({ startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 50, ascending: true })).workouts as HcWorkout[];
+    lines.push(`Workouts: ${w.map((x) => `${x.workoutType} ${at(x.startDate)} ${Math.round(x.duration / 60)} min`).join("; ") || "none"}`);
+  } catch { /* none */ }
+  return lines.join("\n");
+}
+
 /** Today in detail, for the diagnostics: steps per device, active minutes, calories every way. */
 export async function todayHealth(): Promise<{ day: StepDay | null; merged: number; kcal: { active: number; total: number | null; bmr: number | null; estimate: number | null } }> {
   const r = dayRanges(new Date(), 1)[0];
