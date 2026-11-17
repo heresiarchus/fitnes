@@ -86,6 +86,8 @@ export const ACTIVE_SPM = 60;
 
 export interface StepDay {
   steps: number;
+  /** Samsung's own running daily total, when it writes one (a record covering most of the day). */
+  dayTotal?: number;
   /** Minutes with at least ACTIVE_SPM steps (Health Connect has no "active time"; this rebuilds it from steps). */
   activeMin: number;
   /** Steps per recording device, for the diagnostics. */
@@ -99,9 +101,19 @@ export interface StepDay {
  * few seconds between devices (which made slices count twice before) land in the same minute.
  * Exact duplicate records are dropped. Returns null when Samsung Health wrote nothing that day.
  */
+/** A record that spans most of a day is a daily summary, not steps taken in that time. */
+export const DAY_LONG_MS = 12 * 3600 * 1000;
+const isDayLong = (r: StepRecord) => Date.parse(r.endDate) - Date.parse(r.startDate) >= DAY_LONG_MS;
+
 export function samsungDay(records: StepRecord[]): StepDay | null {
-  const own = records.filter((r) => isSamsung(r.sourceName) && r.value > 0);
-  if (!own.length) return null;
+  const all = records.filter((r) => isSamsung(r.sourceName) && r.value > 0);
+  if (!all.length) return null;
+  // Samsung also writes its running daily total as one record ending at 23:59. That number is
+  // exactly what Samsung Health shows, so it wins; spreading it over the day would add it twice.
+  const daily = all.filter(isDayLong);
+  const dayTotal = daily.length ? Math.max(...daily.map((r) => r.value)) : undefined;
+  const own = all.filter((r) => !isDayLong(r));
+  if (!own.length) return { steps: Math.round(dayTotal ?? 0), dayTotal, activeMin: 0, byDevice: {} };
   const seen = new Set<string>();
   const perDevice = new Map<string, Map<number, number>>();
   const byDevice: Record<string, number> = {};
@@ -124,7 +136,7 @@ export function samsungDay(records: StepRecord[]): StepDay | null {
   let steps = 0, activeMin = 0;
   best.forEach((v) => { steps += v; if (v >= ACTIVE_SPM) activeMin++; });
   Object.keys(byDevice).forEach((k) => (byDevice[k] = Math.round(byDevice[k])));
-  return { steps: Math.round(steps), activeMin, byDevice };
+  return { steps: Math.round(dayTotal ?? steps), dayTotal, activeMin, byDevice };
 }
 
 export interface KcalRecord { startDate: string; endDate: string; value: number; sourceName?: string }
@@ -167,7 +179,8 @@ export const samsungSteps = (records: StepRecord[]): number | null => samsungDay
 
 /** End of the latest Samsung step record: how fresh Samsung Health's data in Health Connect is. */
 export function latestSamsung(records: StepRecord[]): string | null {
-  const ends = records.filter((r) => isSamsung(r.sourceName) && r.value > 0).map((r) => r.endDate).sort();
+  // The daily summary always ends at 23:59, so it says nothing about freshness.
+  const ends = records.filter((r) => isSamsung(r.sourceName) && r.value > 0 && !isDayLong(r)).map((r) => r.endDate).sort();
   return ends.at(-1) ?? null;
 }
 

@@ -1084,6 +1084,8 @@ export const uk = {
   "hc.diag.type.calories": "Активні калорії",
   "hc.diag.type.distance": "Дистанція",
   "hc.diag.type.heartRate": "Пульс",
+  "hc.report": "Скопіювати звіт для Claude",
+  "hc.report.copied": "Звіт скопійовано. Встав його в чат із Claude — там лише сьогоднішні числа з Health Connect.",
 } as const;
 
 export type MessageKey = keyof typeof uk;
