@@ -92,6 +92,8 @@ export interface SamsungData {
   sleep?: Record<string, { minutes: number; start?: string; end?: string; napMin?: number }>;
   restingHr?: Record<string, number>;
   activeKcal?: Record<string, number>;
+  /** Minutes with walking-pace steps, from the watch (Health Connect has no "active time"). */
+  activeMin?: Record<string, number>;
   distanceKm?: Record<string, number>;
   exercise: SamsungExercise[];
   weight: SamsungWeight[];
@@ -247,6 +249,7 @@ export function applySamsung(
 
   if (sources.exercise) {
     for (const [date, v] of Object.entries(data.activeKcal ?? {})) { const d = get(date); if (d.activeKcal !== v) { d.activeKcal = v; next.set(date, d); } }
+    for (const [date, v] of Object.entries(data.activeMin ?? {})) { const d = get(date); if (d.activeMin !== v) { d.activeMin = v; next.set(date, d); } }
   }
   if (sources.steps) {
     for (const [date, v] of Object.entries(data.distanceKm ?? {})) { const d = get(date); if (d.distanceKm !== v) { d.distanceKm = v; next.set(date, d); } }

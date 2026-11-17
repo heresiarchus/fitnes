@@ -1069,6 +1069,21 @@ export const uk = {
   "more.calendar": "Календар усіх записів",
   "more.list": "Усі записи списком",
   "more.calendarSub": "тиск, вага, рух по днях; запис тиску",
+  "hc.t.steps": "Кроки сьогодні: {v} (застосунок рахує так) · загальний підсумок Health Connect — {all}",
+  "hc.t.device": "• з {dev}: {n} (сума його записів)",
+  "hc.dev.watch": "годинника",
+  "hc.dev.phone": "телефона",
+  "hc.dev.unknown": "невідомого пристрою",
+  "hc.dev.ring": "кільця",
+  "hc.dev.fitnessBand": "браслета",
+  "hc.t.active": "Активні хвилини (кроки ≥ 60 за хвилину): {v}",
+  "hc.t.kcal": "Калорії: активні від Samsung — {a}; загальні — {tot}; базальний обмін — {bmr} ккал/добу; оцінка активних — {est}",
+  "hc.t.compare": "Порівняй із годинником: кроки, активний час і калорії. Якщо щось не сходиться — надішли цей екран Claude.",
+  "hc.diag.type.totalCalories": "Загальні калорії",
+  "hc.diag.type.basalCalories": "Базальний обмін",
+  "hc.diag.type.calories": "Активні калорії",
+  "hc.diag.type.distance": "Дистанція",
+  "hc.diag.type.heartRate": "Пульс",
 } as const;
 
 export type MessageKey = keyof typeof uk;

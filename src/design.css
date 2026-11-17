@@ -468,3 +468,4 @@ a.goal:active { transform: scale(0.97); }
 .rangepick .mday.r-in { background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 0; }
 .rangepick .mday.r-end { background: var(--accent); color: var(--on-accent); }
 .rangepick .mday.r-end .mday-n { color: var(--on-accent); }
+.diag-today { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; }

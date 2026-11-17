@@ -56,6 +56,8 @@ export interface DayEntry {
   sleepEnd?: string;
   /** Active calories and distance for the day, from the watch. */
   activeKcal?: number;
+  /** Active minutes rebuilt from the watch's steps (minutes at walking pace or faster). */
+  activeMin?: number;
   distanceKm?: number;
   /** Daytime sleep, minutes (kept apart from the night). */
   napMin?: number;
