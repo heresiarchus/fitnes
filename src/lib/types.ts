@@ -127,6 +127,10 @@ export interface ReminderCfg {
   every?: number;
   /** Evening check only; unset means "fullscreen". */
   style?: ReminderStyle;
+  /** Sound: "raw:fitnes_chime" (default), "raw:…", "default" (the phone's), "uri:…" (picked on the phone) or "none". */
+  sound?: string;
+  /** Name of a sound picked on the phone, to show in settings. */
+  soundTitle?: string;
 }
 export type Reminders = Record<ReminderKind, ReminderCfg>;
 

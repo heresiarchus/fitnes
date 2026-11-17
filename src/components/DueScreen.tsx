@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { saveDay } from "../db";
 import { getSnooze, setSnooze as putSnooze } from "../lib/snooze";
 import { reminderDueClosed } from "../native";
@@ -50,8 +51,10 @@ export function DueScreen({ days, settings }: { days: DaysMap; settings: Setting
   const visible = items.length > 0 && now.getTime() >= snooze;
   // Opened over the lock screen by a reminder: once done (or put off), stop showing over it.
   useEffect(() => { if (!visible) reminderDueClosed(); }, [visible]);
+  // On the day form the person is already filling the day in: don't cover it.
+  const onForm = useLocation().pathname === "/log";
 
-  if (!visible) return null;
+  if (!visible || onForm) return null;
   const save = (patch: Partial<DayEntry>) => saveDay({ ...day, ...patch, updatedAt: new Date().toISOString() });
   const later = () => {
     const until = Date.now() + SNOOZE_MIN * 60 * 1000;

@@ -2,7 +2,7 @@ import { Health } from "@capgo/capacitor-health";
 import { db, getHealthState, getSettings, saveDays, saveItems, setHealthState, updateSettings } from "./db";
 import { makeT, type MessageKey } from "./i18n";
 import { addDays } from "./lib/date";
-import { dayRanges, type HcAggregate, type HcSample, type HcWorkout, mapHealth, samsungSteps, type StepRecord, workoutItem } from "./lib/healthMap";
+import { dayRanges, type HcAggregate, type HcSample, type HcWorkout, latestSamsung, mapHealth, samsungSteps, type StepRecord, workoutItem } from "./lib/healthMap";
 import { applySamsung } from "./lib/samsung";
 import type { DayEntry, DaysMap, Settings, SourceKey } from "./lib/types";
 import { SOURCE_KEYS } from "./lib/types";
@@ -185,8 +185,15 @@ async function run(daysArg?: number): Promise<number> {
     await saveDays(changes);
     if (got.workouts?.length) await saveWorkouts(got.workouts, granted.has("heartRate"), errors);
     const nowIso = new Date().toISOString();
+    let lastDataAt = state.lastDataAt;
+    if (granted.has("steps")) {
+      try {
+        const r = dayRanges(new Date(), 1)[0];
+        lastDataAt = latestSamsung((await Health.readSamples({ dataType: "steps", startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as StepRecord[]) ?? lastDataAt;
+      } catch { /* freshness is a hint only */ }
+    }
     await setHealthState({
-      on: true, history: state.history, lastPullAt: nowIso, lastCount: changes.length,
+      on: true, history: state.history, lastPullAt: nowIso, lastCount: changes.length, lastDataAt,
       lastFullAt: span >= FULL_DAYS ? nowIso : state.lastFullAt,
       ...(errors.length ? { lastError: errors.join("; ") } : {}),
     });

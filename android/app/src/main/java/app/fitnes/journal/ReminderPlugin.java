@@ -1,6 +1,8 @@
 package app.fitnes.journal;
 
 import android.app.Activity;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
 import android.app.AlarmManager;
 import android.app.NotificationManager;
 import android.content.Context;
@@ -16,7 +18,10 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+
+import androidx.activity.result.ActivityResult;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -48,6 +53,7 @@ public class ReminderPlugin extends Plugin {
             it.put("title", call.getString("title", "Fitnes"));
             it.put("body", call.getString("body", ""));
             it.put("style", call.getString("style", "notification"));
+            it.put("sound", call.getString("sound", "default"));
             ReminderReceiver.arm(getContext(), it);
             call.resolve();
         } catch (JSONException e) {
@@ -119,5 +125,46 @@ public class ReminderPlugin extends Plugin {
             });
         }
         call.resolve();
+    }
+
+    private Ringtone playing;
+
+    /** Plays a reminder sound once, to hear it before choosing. */
+    @PluginMethod
+    public void playSound(PluginCall call) {
+        if (playing != null && playing.isPlaying()) playing.stop();
+        Uri uri = ReminderReceiver.soundUri(getContext(), call.getString("sound", "default"));
+        if (uri != null) {
+            playing = RingtoneManager.getRingtone(getContext(), uri);
+            if (playing != null) playing.play();
+        }
+        call.resolve();
+    }
+
+    /** The phone's own sound picker; resolves { sound: "uri:…", title } or {} when cancelled. */
+    @PluginMethod
+    public void pickSound(PluginCall call) {
+        Intent i = new Intent(RingtoneManager.ACTION_RINGTONE_PICKER);
+        i.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION);
+        i.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true);
+        i.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false);
+        String cur = call.getString("current", "");
+        if (cur != null && cur.startsWith("uri:")) i.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(cur.substring(4)));
+        startActivityForResult(call, i, "pickSoundResult");
+    }
+
+    @ActivityCallback
+    private void pickSoundResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        JSObject r = new JSObject();
+        if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+            Uri uri = result.getData().getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
+            if (uri != null) {
+                Ringtone rt = RingtoneManager.getRingtone(getContext(), uri);
+                r.put("sound", "uri:" + uri);
+                r.put("title", rt != null ? rt.getTitle(getContext()) : "");
+            }
+        }
+        call.resolve(r);
     }
 }

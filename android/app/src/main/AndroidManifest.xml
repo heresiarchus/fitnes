@@ -64,6 +64,11 @@
 
     <!-- Permissions -->
 
+    <!-- Lets the app open Samsung Health so it pushes its newest data to Health Connect. -->
+    <queries>
+        <package android:name="com.sec.android.app.shealth" />
+    </queries>
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Evening reminder on the whole screen: over other apps, over the lock screen, at the exact time, after a restart. -->

@@ -1,4 +1,5 @@
 import { App as CapApp } from "@capacitor/app";
+import { getSettings } from "./db";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import type { MessageKey, TFn } from "./i18n";
@@ -15,8 +16,13 @@ export const isNative = Capacitor.isNativePlatform();
 
 export const APK_URL = "https://github.com/heresiarchus/fitnes/releases/latest/download/fitnes.apk";
 
-interface WidgetPlugin { update(data: Record<string, string>): Promise<void> }
+interface WidgetPlugin { update(data: Record<string, string>): Promise<void>; openApp(o: { package: string }): Promise<void> }
 const Widget = registerPlugin<WidgetPlugin>("FitnesWidget");
+/** Opens Samsung Health (newer shells only); false when it can't. */
+export async function openSamsungHealth(): Promise<boolean> {
+  if (!isNative) return false;
+  try { await Widget.openApp({ package: "com.sec.android.app.shealth" }); return true; } catch { return false; }
+}
 
 /** Pushes today's goal progress to the home-screen widget (first three enabled goals). */
 export async function updateWidget(days: DaysMap, t: TFn, lang: Lang, settings?: Settings) {
@@ -42,8 +48,10 @@ export async function updateWidget(days: DaysMap, t: TFn, lang: Lang, settings?:
 /** What the phone allows for each way of reminding. */
 export interface ReminderPerms { notifications: boolean; overlay: boolean; fullScreen: boolean; exact: boolean }
 interface RemindersPlugin {
-  schedule(o: { items: { id: number; at: number; title: string; body: string; style: string }[] }): Promise<void>;
-  test(o: { seconds: number; title: string; body: string; style: string }): Promise<void>;
+  schedule(o: { items: { id: number; at: number; title: string; body: string; style: string; sound: string }[] }): Promise<void>;
+  test(o: { seconds: number; title: string; body: string; style: string; sound: string }): Promise<void>;
+  playSound(o: { sound: string }): Promise<void>;
+  pickSound(o: { current?: string }): Promise<{ sound?: string; title?: string }>;
   clearShown(): Promise<void>;
   permissions(): Promise<ReminderPerms>;
   openSettings(o: { which: keyof ReminderPerms }): Promise<void>;
@@ -55,9 +63,13 @@ export const nativeReminders = () => isNative && Capacitor.isPluginAvailable("Fi
 export const reminderPerms = () => Reminders.permissions();
 export const openReminderSettings = (which: keyof ReminderPerms) => Reminders.openSettings({ which });
 export const reminderDueClosed = () => { if (nativeReminders()) void Reminders.dueClosed().catch(() => {}); };
-export function testReminder(style: ReminderStyle, t: TFn) {
-  return Reminders.test({ seconds: 5, title: t("remind.test.title"), body: t("remind.test.body"), style: styleOf(style, 2) });
+export const DEFAULT_SOUND = "raw:fitnes_chime";
+export function testReminder(style: ReminderStyle, sound: string | undefined, t: TFn) {
+  return Reminders.test({ seconds: 5, title: t("remind.test.title"), body: t("remind.test.body"), style: styleOf(style, 2), sound: sound ?? DEFAULT_SOUND });
 }
+/** Plays a reminder sound now (the phone app plays it as a notification sound). */
+export const playReminderSound = (sound: string) => Reminders.playSound({ sound });
+export const pickReminderSound = (current?: string) => Reminders.pickSound({ current });
 
 export async function notificationsAllowed(): Promise<boolean> {
   if (!isNative) return false;
@@ -100,9 +112,10 @@ export async function syncReminders(settings: Settings, days: DaysMap, t: TFn) {
       if (done) await Reminders.clearShown();
       const snooze = getSnooze();
       const style = settings.reminders.evening.style;
+      const sound = settings.reminders.evening.sound ?? DEFAULT_SOUND;
       await Reminders.schedule({
         items: plan.filter((p) => p.kind === "evening" && p.at.getTime() >= snooze)
-          .map((p) => ({ id: p.id, at: p.at.getTime(), ...text(p), style: styleOf(style, p.rep ?? 0) })),
+          .map((p) => ({ id: p.id, at: p.at.getTime(), ...text(p), style: styleOf(style, p.rep ?? 0), sound })),
       });
     }
     if (!(await notificationsAllowed())) return;
@@ -119,7 +132,7 @@ export async function syncReminders(settings: Settings, days: DaysMap, t: TFn) {
           // Stays in the shade until the evening is complete; cleared by the app, not by a swipe.
           ongoing: true,
           autoCancel: false,
-          extra: { route: "/" },
+          extra: { route: `/log?date=${p.date}` },
         };
       }),
     });
@@ -135,7 +148,11 @@ export function listenNativeOpens(go: (route: string) => void) {
     if (e.url.includes("://auth")) { void import("./cloud/client").then((m) => m.finishNativeLogin(e.url)); go("/settings/account"); return; }
     if (e.url.includes("://log")) go("/log");
     // An evening reminder was tapped or opened the app by itself: show the evening screen now.
-    if (e.url.includes("://due")) { setSnooze(0); go("/"); }
+    // An evening reminder was tapped or opened the app: go straight to filling in that evening's day.
+    if (e.url.includes("://due")) {
+      setSnooze(0);
+      void getSettings().then((st) => go(`/log?date=${eveningDay(st, new Date()) ?? iso(new Date())}`));
+    }
   });
   void LocalNotifications.addListener("localNotificationActionPerformed", (e) => {
     const route = (e.notification.extra as { route?: string } | undefined)?.route;

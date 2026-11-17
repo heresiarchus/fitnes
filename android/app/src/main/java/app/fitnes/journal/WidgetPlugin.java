@@ -1,5 +1,6 @@
 package app.fitnes.journal;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 
 import com.getcapacitor.Plugin;
@@ -24,6 +25,20 @@ public class WidgetPlugin extends Plugin {
         }
         editor.apply();
         FitnesWidget.refreshAll(getContext());
+        call.resolve();
+    }
+
+    /** Opens another installed app (Samsung Health), which then syncs its latest data to Health Connect. */
+    @PluginMethod
+    public void openApp(PluginCall call) {
+        String pkg = call.getString("package", "");
+        Intent launch = getContext().getPackageManager().getLaunchIntentForPackage(pkg);
+        if (launch == null) {
+            call.reject("not installed");
+            return;
+        }
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(launch);
         call.resolve();
     }
 }

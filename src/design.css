@@ -426,3 +426,45 @@ a.goal:active { transform: scale(0.97); }
 .wk-goal { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 14px; background: var(--good-soft); }
 .wk-goal span { font-size: 0.92rem; font-weight: 600; }
 .doc-text { white-space: pre-wrap; margin: 0; padding: 12px; border-radius: 12px; background: var(--field); font-family: var(--font); font-size: 0.88rem; line-height: 1.5; overflow-wrap: anywhere; }
+.hfresh { display: grid; gap: 6px; padding: 8px 10px; border-radius: 14px; background: rgb(0 0 0 / 0.16); border: 1px solid rgb(255 255 255 / 0.14); }
+.hfresh > span { font-size: 0.82rem; font-weight: 600; opacity: 0.95; }
+.hfresh small { font-size: 0.78rem; opacity: 0.9; }
+.hfresh-b { display: flex; flex-wrap: wrap; gap: 6px; }
+.today-card .hfresh .compact { min-height: 34px; padding: 0 12px; font-size: 0.82rem; background: rgb(255 255 255 / 0.18); color: #fff; box-shadow: none; }
+.snd-list { display: grid; gap: 6px; }
+.snd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.snd-pick { justify-content: flex-start; gap: 10px; min-height: 46px; text-align: left; font-weight: 600; }
+.snd-pick i { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--muted); flex: none; }
+.snd.on .snd-pick { background: color-mix(in srgb, var(--accent) 14%, var(--field)); }
+.snd.on .snd-pick i { box-shadow: inset 0 0 0 6px var(--accent); }
+.snd-play { width: 46px; padding: 0; font-size: 0.9rem; }
+/* Calendar view of a metric and the period picker */
+.mgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.mgrid-wd { text-align: center; font-size: 0.74rem; font-weight: 650; color: var(--muted); padding-bottom: 2px; }
+.mday { position: relative; min-height: 54px; padding: 4px 1px; border-radius: 12px; display: grid; align-content: start; justify-items: center; gap: 0; background: transparent; font-weight: 500; min-width: 0; overflow: hidden; color: var(--ink); }
+.mday:disabled { opacity: 0.35; background: transparent; }
+.mday.has { background: color-mix(in srgb, var(--hue, var(--accent)) calc(var(--heat, 0.4) * 100%), var(--field)); }
+.mday.has .mday-n, .mday.has .mday-v { color: var(--ink); }
+.mday.met { box-shadow: inset 0 0 0 2px var(--good); }
+.mday.bp-ok { background: var(--good-soft); } .mday.bp-elevated { background: color-mix(in srgb, #f59e0b 30%, var(--field)); } .mday.bp-high { background: var(--bad-soft); }
+.mday.today .mday-n { box-shadow: inset 0 0 0 2px var(--accent); border-radius: 999px; padding: 0 6px; }
+.mday.sel { outline: 3px solid var(--accent); outline-offset: -3px; }
+.mday-n { font-size: 0.85rem; font-weight: 700; line-height: 1.3; }
+.mday-v { font-size: 0.74rem; font-weight: 750; line-height: 1.25; white-space: nowrap; font-feature-settings: "tnum" 1; letter-spacing: -0.02em; }
+.mday-star { position: absolute; top: 2px; right: 3px; font-style: normal; font-size: 0.62rem; color: #d97706; }
+:root[data-theme="dark"] .mday.has { background: color-mix(in srgb, var(--hue, var(--accent)) calc(var(--heat, 0.4) * 80%), var(--field)); }
+.daycard { display: grid; gap: 6px; padding: 12px 14px; border-radius: 16px; background: var(--field); animation: pop 0.25s var(--spring); }
+.daycard b { font-weight: 750; }
+.daycard b::first-letter { text-transform: uppercase; }
+.daycard dl { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+.daycard dl div { display: grid; }
+.daycard dt { font-size: 0.75rem; color: var(--muted); font-weight: 650; }
+.daycard dd { margin: 0; font-weight: 750; font-feature-settings: "tnum" 1; }
+.daycard small { color: #b45309; font-weight: 650; }
+:root[data-theme="dark"] .daycard small { color: #fbbf24; }
+.daycard .compact { justify-self: start; }
+.rangepick { display: grid; gap: 8px; }
+.rangepick .mday { min-height: 40px; }
+.rangepick .mday.r-in { background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 0; }
+.rangepick .mday.r-end { background: var(--accent); color: var(--on-accent); }
+.rangepick .mday.r-end .mday-n { color: var(--on-accent); }
