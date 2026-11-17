@@ -3,10 +3,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { HUES } from "../components/Brand";
 import { Icon, type IconName } from "../components/Card";
 import { MetricChart } from "../components/MetricChart";
+import { MonthGrid } from "../components/MonthGrid";
 import { updateSettings } from "../db";
 import { type MessageKey, useI18n } from "../i18n";
 import {
-  type Bucket, type Grouping, type MetricId, byWeekday, change, dropSignal, forecast, group, mean, median, present, rolling, series, sleepView, slope,
+  type Bucket, type Grouping, type MetricId, VALUE, byWeekday, change, dropSignal, forecast, group, mean, median, present, rolling, series, sleepView, slope,
   streaks, sum, trendLine, weightView, bpWeek, bpClass,
 } from "../lib/analytics";
 import { ddmm, iso, parseIso } from "../lib/date";
@@ -42,6 +43,30 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
   );
 }
 
+/** One day at a glance (tap a day in the calendar view). */
+function DayCard({ date, entry, lang, onOpen }: { date: string; entry: DayEntry | undefined; lang: "uk" | "en"; onOpen: () => void }) {
+  const { t } = useI18n();
+  const b = bpSummary(entry);
+  const rows: [string, string | null][] = [
+    [t("an.m.steps"), entry?.steps != null ? fmtInt(entry.steps, lang) : null],
+    [t("an.m.active"), VALUE.active(entry) != null ? `${VALUE.active(entry)} ${t("an.u.min")}` : null],
+    [t("an.m.weight"), VALUE.weight(entry) != null ? `${fmtKg(VALUE.weight(entry), lang)} ${t("an.u.kg")}` : null],
+    [t("an.m.sleep"), entry?.sleepMin != null ? `${fmt(entry.sleepMin / 60, lang)} ${t("an.u.h")}` : null],
+    [t("an.m.pulse"), entry?.restingHr != null ? `${entry.restingHr} ${t("an.u.bpm")}` : null],
+    [t("an.m.bp"), b.morning || b.evening ? [b.morning, b.evening].filter(Boolean).map((x) => `${x!.sys}/${x!.dia}`).join(" · ") : null],
+    [t("an.m.feel"), entry?.feel != null ? `${entry.feel} / 5` : null],
+  ];
+  const have = rows.filter((r) => r[1] != null);
+  return (
+    <div className="daycard">
+      <b>{parseIso(date).toLocaleDateString(lang === "uk" ? "uk-UA" : "en-GB", { weekday: "long", day: "numeric", month: "long" })}</b>
+      {have.length ? <dl>{have.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl> : <p className="status" style={{ margin: 0 }}>{t("an.noDay")}</p>}
+      {hasEvent(entry) && <small>★ {t("an.dayEvent")}</small>}
+      <button type="button" className="compact primary" onClick={onOpen}>{t("an.open.day")}</button>
+    </div>
+  );
+}
+
 export function MetricPage({ days, settings }: { days: DaysMap; settings: Settings }) {
   const { id = "steps" } = useParams();
   const pid = (PAGE_IDS.includes(id as PageId) ? id : "steps") as PageId;
@@ -54,6 +79,10 @@ export function MetricPage({ days, settings }: { days: DaysMap; settings: Settin
   const [custom, setCustom] = useState({ from: iso(new Date(Date.now() - 29 * 864e5)), to: iso(new Date()) });
   const [grouping, setGrouping] = useState<Grouping | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
+  const [view, setView] = useState<"chart" | "cal">("chart");
+  const [day, setDay] = useState<string | null>(null);
+  const [rangeMonth, setRangeMonth] = useState(() => iso(new Date()).slice(0, 7) + "-01");
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
   const first = useMemo(() => Object.keys(days).sort()[0], [days]);
   const p = period(span, offset, { first, ...custom });
   const g: Grouping = grouping ?? (p.dates.length <= 35 ? "day" : p.dates.length <= 200 ? "week" : "month");
@@ -71,6 +100,7 @@ export function MetricPage({ days, settings }: { days: DaysMap; settings: Settin
 
   const num = (x: number | null | undefined) => (x == null ? "—" : pid === "steps" ? fmtInt(x, lang) : pid === "weight" ? fmtKg(x, lang) : pid === "bp" || pid === "pulse" || pid === "active" ? fmtInt(x, lang) : fmt(x, lang));
   const unit = t(c.unit);
+  const short = (x: number, d: string) => pid === "steps" ? (x >= 1000 ? `${fmt(x / 1000, lang)}k` : String(x)) : pid === "bp" ? `${x}/${VALUE.bpDia(days[d]) ?? "—"}` : pid === "weight" ? fmt(x, lang) : pid === "sleep" ? fmt(x, lang) : String(Math.round(x));
   const dayLabel = (d: string) => parseIso(d).toLocaleDateString(loc, { day: "numeric", month: "short" });
   const bucketName = (b: Bucket) => (g === "day" ? dayLabel(b.start) : g === "week" ? `${ddmm(b.start)}–${ddmm(b.end)}` : monthName(b.start, lang));
   const bucketValue = (b: Bucket, i: number) => (pid === "bp" ? `${num(b.v)}/${num(second?.[i]?.v)}` : `${num(b.v)} ${unit}`);
@@ -171,7 +201,7 @@ export function MetricPage({ days, settings }: { days: DaysMap; settings: Settin
   const label = span === "week" ? `${ddmm(p.from)}–${ddmm(p.to)}` : span === "month" ? monthName(p.from, lang)
     : span === "quarter" ? `${parseIso(p.from).toLocaleDateString(loc, { month: "short" })} – ${monthName(p.to, lang)}`
     : span === "year" ? p.from.slice(0, 4) : span === "all" ? t("an.allTime") : `${ddmm(p.from)}–${ddmm(p.to)}`;
-  const choose = (s: Span) => { setSpan(s); setOffset(0); setGrouping(null); setPicked(null); };
+  const choose = (s: Span) => { setSpan(s); setOffset(0); setGrouping(null); setPicked(null); setDay(null); if (s !== "month") setView("chart"); };
   const pick = picked != null ? buckets[picked] : null;
 
   return (
@@ -188,9 +218,24 @@ export function MetricPage({ days, settings }: { days: DaysMap; settings: Settin
           {SPANS.map((s) => <button key={s} type="button" role="radio" aria-checked={span === s} className={span === s ? "on" : ""} onClick={() => choose(s)}>{t(`an.span.${s}` as MessageKey)}</button>)}
         </div>
         {span === "custom" && (
-          <div className="fields two">
-            <label className="field"><span>{t("an.from")}</span><input type="date" value={custom.from} max={custom.to} onChange={(e) => e.target.value && setCustom({ ...custom, from: e.target.value })} /></label>
-            <label className="field"><span>{t("an.to")}</span><input type="date" value={custom.to} min={custom.from} onChange={(e) => e.target.value && setCustom({ ...custom, to: e.target.value })} /></label>
+          <div className="rangepick">
+            <div className="pnav">
+              <button type="button" aria-label={t("an.older")} onClick={() => setRangeMonth(iso(new Date(+rangeMonth.slice(0, 4), +rangeMonth.slice(5, 7) - 2, 1)))}>‹</button>
+              <div className="pnav-mid"><h2>{monthName(rangeMonth, lang)}</h2></div>
+              <button type="button" aria-label={t("an.newer")} onClick={() => setRangeMonth(iso(new Date(+rangeMonth.slice(0, 4), +rangeMonth.slice(5, 7), 1)))}>›</button>
+            </div>
+            <MonthGrid month={rangeMonth} lang={lang} disabled={(d) => d > iso(new Date())}
+              render={(d) => {
+                const a = rangeStart ?? custom.from, b = rangeStart ? rangeStart : custom.to;
+                const lo = a < b ? a : b, hi = a < b ? b : a;
+                return { className: d === lo || d === hi ? "r-end" : d > lo && d < hi ? "r-in" : "" };
+              }}
+              onPick={(d) => {
+                if (!rangeStart) { setRangeStart(d); setCustom({ from: d, to: d }); return; }
+                const [from, to] = d < rangeStart ? [d, rangeStart] : [rangeStart, d];
+                setCustom({ from, to }); setRangeStart(null); setOffset(0); setPicked(null);
+              }} />
+            <p className="status" style={{ margin: 0 }}>{rangeStart ? t("an.pickEnd") : t("an.rangeIs", { from: ddmm(custom.from), to: ddmm(custom.to) })}</p>
           </div>
         )}
         {span !== "all" && (
@@ -210,6 +255,31 @@ export function MetricPage({ days, settings }: { days: DaysMap; settings: Settin
               <span>{pid === "bp" ? t("an.u.mmhg") : unit} · {t(`an.h.${pid}` as MessageKey)}</span>
               {cmp && <em className={cmp.good == null ? "same" : cmp.good ? "good" : "bad"}>{cmp.text} {t("an.vsPrev")}</em>}
             </div>
+            <div className="seg grp" role="radiogroup" aria-label={t("an.view")}>
+              <button type="button" role="radio" aria-checked={view === "chart"} className={view === "chart" ? "on" : ""} onClick={() => setView("chart")}>{t("an.view.chart")}</button>
+              <button type="button" role="radio" aria-checked={view === "cal"} className={view === "cal" ? "on" : ""} onClick={() => { if (span !== "month") { setSpan("month"); setOffset(0); setGrouping(null); } setView("cal"); setPicked(null); }}>{t("an.view.cal")}</button>
+            </div>
+            {view === "cal" ? (
+              <>
+                <MonthGrid month={p.from} lang={lang} disabled={(d) => d > iso(new Date())}
+                  render={(d) => {
+                    const x = VALUE[c.metric](days[d]);
+                    const today = d === iso(new Date());
+                    const ev = hasEvent(days[d]) ? <i className="mday-star">★</i> : null;
+                    if (x == null) return { className: today ? "today" : "", body: ev };
+                    const heat = pid === "bp" ? null : goal ? Math.min(1, x / goal) : xs.length > 1 ? (x - Math.min(...xs)) / ((Math.max(...xs) - Math.min(...xs)) || 1) : 0.6;
+                    const cls = pid === "bp" ? "bp-" + bpClass(x, VALUE.bpDia(days[d]) ?? 0) : heat != null && goal && x >= goal ? "met" : "";
+                    return {
+                      className: `has ${cls} ${today ? "today" : ""} ${day === d ? "sel" : ""}`,
+                      style: heat != null ? { ["--heat" as string]: String(0.18 + heat * 0.62), ["--hue" as string]: c.hue[1] } : undefined,
+                      body: <><span className="mday-v">{short(x, d)}</span>{ev}</>,
+                      label: `${d}: ${num(x)}`,
+                    };
+                  }}
+                  onPick={(d) => setDay(day === d ? null : d)} />
+                {day && <DayCard date={day} entry={days[day]} lang={lang} onOpen={() => nav(`/log?date=${day}`)} />}
+              </>
+            ) : (<>
             <div className="seg grp" role="radiogroup" aria-label={t("an.grouping")}>
               {(["day", "week", "month"] as Grouping[]).map((x) => <button key={x} type="button" role="radio" aria-checked={g === x} className={g === x ? "on" : ""} onClick={() => { setGrouping(x); setPicked(null); }}>{t(`an.group.${x}` as MessageKey)}</button>)}
             </div>
@@ -231,6 +301,7 @@ export function MetricPage({ days, settings }: { days: DaysMap; settings: Settin
               )}
             </div>
             <p className="mlegend">{smooth && <span><i className="lg-smooth" style={{ background: c.hue[1] }} />{t(pid === "weight" ? "an.lg.trend" : "an.lg.avg7")}</span>}{goal != null && <span><i className="lg-goal" />{t("an.lg.goal")}</span>}{events.some((x) => x > 0) && <span>{t("an.lg.stars")}</span>}</p>
+            </>)}
           </>
         )}
       </section>

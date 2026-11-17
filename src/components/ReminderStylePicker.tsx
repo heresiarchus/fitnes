@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { type MessageKey, useI18n } from "../i18n";
-import { type ReminderPerms, APK_URL, nativeReminders, openReminderSettings, reminderPerms, testReminder } from "../native";
+import { type ReminderPerms, APK_URL, DEFAULT_SOUND, nativeReminders, openReminderSettings, pickReminderSound, playReminderSound, reminderPerms, testReminder } from "../native";
 import { REMINDER_STYLES, type ReminderStyle } from "../lib/types";
 
 /** A small drawing of a phone showing how the evening reminder appears in that style. */
@@ -42,9 +42,15 @@ function Preview({ style }: { style: ReminderStyle }) {
 }
 
 /** Choice of how the evening reminder appears, with a preview of each and what Android must allow. */
-export function ReminderStylePicker({ value, every, onChange }: { value: ReminderStyle | undefined; every: number; onChange: (s: ReminderStyle) => void }) {
+const SOUNDS = ["raw:fitnes_chime", "raw:fitnes_duo", "raw:fitnes_drop", "default", "none"] as const;
+
+export function ReminderStylePicker({ value, every, onChange, sound, soundTitle, onSound }: {
+  value: ReminderStyle | undefined; every: number; onChange: (s: ReminderStyle) => void;
+  sound: string | undefined; soundTitle: string | undefined; onSound: (sound: string, title?: string) => void;
+}) {
   const { t } = useI18n();
   const cur = value ?? "fullscreen";
+  const curSound = sound ?? DEFAULT_SOUND;
   const ready = nativeReminders();
   const [perms, setPerms] = useState<ReminderPerms | null>(null);
   const [tested, setTested] = useState(false);
@@ -88,7 +94,19 @@ export function ReminderStylePicker({ value, every, onChange }: { value: Reminde
             </ul>
           )}
           {perms && needs.some((k) => !perms[k]) && <p className="status" style={{ margin: 0 }}>{t("remind.perm.why")}</p>}
-          <button type="button" onClick={() => void testReminder(cur, t).then(() => setTested(true))}>{t("remind.test")}</button>
+          <span className="sub-h">{t("snd.title")}</span>
+          <div className="snd-list" role="radiogroup" aria-label={t("snd.title")}>
+            {[...SOUNDS, ...(curSound.startsWith("uri:") ? [curSound] : [])].map((x) => (
+              <div key={x} className={"snd" + (curSound === x ? " on" : "")}>
+                <button type="button" role="radio" aria-checked={curSound === x} className="snd-pick" onClick={() => { onSound(x); if (x !== "none") void playReminderSound(x).catch(() => {}); }}>
+                  <i aria-hidden="true" />{x.startsWith("uri:") ? t("snd.phone", { name: soundTitle || "…" }) : t(`snd.${x.replace("raw:", "")}` as MessageKey)}
+                </button>
+                {x !== "none" && <button type="button" className="snd-play" aria-label={t("snd.play")} onClick={() => void playReminderSound(x).catch(() => {})}>▶</button>}
+              </div>
+            ))}
+          </div>
+          <button type="button" className="link" onClick={() => void pickReminderSound(curSound).then((r) => { if (r.sound) onSound(r.sound, r.title); }).catch(() => {})}>{t("snd.pick")}</button>
+          <button type="button" onClick={() => void testReminder(cur, curSound, t).then(() => setTested(true))}>{t("remind.test")}</button>
           {tested && <p className="status ok" style={{ margin: 0 }}>{t("remind.testHint")}</p>}
         </>
       )}

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Logo } from "./components/Brand";
 import { applyLook } from "./look";
-import { HashRouter, NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { HashRouter, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { PwaPrompt } from "./components/PwaPrompt";
 import { DueScreen } from "./components/DueScreen";
 import { useDays, useSettings } from "./db";
@@ -31,7 +31,7 @@ import { askNotifications, isNative, listenNativeOpens, syncReminders, updateWid
 const ICONS: Record<string, string> = {
   overview: "M3 13h4v8H3zM10 8h4v13h-4zM17 3h4v18h-4z",
   log: "M12 5v14M5 12h14",
-  calendar: "M4 6h16v15H4zM4 10h16M8 3v4M16 3v4",
+  analytics: "M3 17l6-6 4 4 8-8M15 7h6v6",
   diary: "M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2zM9 9h6M9 13h6",
   settings: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1",
 };
@@ -40,7 +40,7 @@ const TABS = [
   { to: "/", key: "overview" },
   { to: "/log", key: "log" },
   { to: "/diary", key: "diary" },
-  { to: "/history", key: "calendar" },
+  { to: "/more", key: "analytics" },
   { to: "/settings", key: "settings" },
 ];
 
@@ -49,6 +49,7 @@ function Shell() {
   const days = useDays();
   const settings = useSettings();
   const navigate = useNavigate();
+  const location = useLocation();
   const [notifOk, setNotifOk] = useState(false);
   const [snoozed, setSnoozed] = useState(0);
   useEffect(() => {
@@ -102,7 +103,7 @@ function Shell() {
       <nav className="tabbar no-print" aria-label="Main">
         <div className="side-brand" aria-hidden="true"><Logo size={36} /><b>Fitnes</b></div>
         {TABS.map((tab) => (
-          <NavLink key={tab.key} to={tab.to} end={tab.to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
+          <NavLink key={tab.key} to={tab.to} end={tab.to === "/"} className={({ isActive }) => (isActive || (tab.key === "analytics" && /^\/(m|history|reports)(\/|$)/.test(location.pathname)) ? "on" : "")}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS[tab.key]} /></svg>
             <span>{t(`nav.${tab.key}` as MessageKey)}</span>
           </NavLink>

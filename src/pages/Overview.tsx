@@ -9,6 +9,7 @@ import { QuestionsCard } from "../components/QuestionsCard";
 import { GoalsCard } from "../components/GoalsCard";
 import { Head } from "../components/Head";
 import { WeeklySummary } from "../components/WeeklySummary";
+import { HealthFreshness } from "../components/HealthFreshness";
 import { HeightPrompt } from "../components/HeightPrompt";
 import { dayPhase, Logo, SkyArt } from "../components/Brand";
 import { TasksCard } from "../components/TasksCard";
@@ -53,6 +54,7 @@ export function Overview({ days, settings }: { days: DaysMap; settings: Settings
           <li className="t-move"><Link to="/m/active"><span>{t("cal.day.walk")}</span><b>{td?.walkMin ? `${td.walkMin} ${t("common.min")}` : t("today.none")}</b></Link></li>
           <li className="t-feel"><Link to="/m/feel"><span>{t("form.feeling")}</span><b>{td?.feel != null ? `${td.feel} / 5` : td?.flags?.length ? t("today.flags") : td?.ok ? t("today.ok") : t("today.none")}</b></Link></li>
         </ul>
+        <HealthFreshness />
         <Link className={"btn block" + (td ? "" : " invite")} to="/log">{td ? t("today.more") : t("today.fill")}</Link>
       </section>
 

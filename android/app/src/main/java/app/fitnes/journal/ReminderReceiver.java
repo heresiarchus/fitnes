@@ -10,6 +10,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
@@ -42,7 +43,7 @@ public class ReminderReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context ctx, Intent intent) {
         if (!ACTION_FIRE.equals(intent.getAction())) return;
-        show(ctx, intent.getIntExtra("id", 1), intent.getStringExtra("title"), intent.getStringExtra("body"), intent.getStringExtra("style"));
+        show(ctx, intent.getIntExtra("id", 1), intent.getStringExtra("title"), intent.getStringExtra("body"), intent.getStringExtra("style"), intent.getStringExtra("sound"));
     }
 
     static SharedPreferences prefs(Context ctx) {
@@ -59,29 +60,54 @@ public class ReminderReceiver extends BroadcastReceiver {
         return i;
     }
 
-    static void ensureChannels(Context ctx) {
+    /** "raw:name" (a sound shipped with the app), "uri:…" (picked on the phone), "default" or "none". */
+    static Uri soundUri(Context ctx, String sound) {
+        if (sound == null || sound.isEmpty() || "default".equals(sound)) return Settings.System.DEFAULT_NOTIFICATION_URI;
+        if ("none".equals(sound)) return null;
+        if (sound.startsWith("raw:")) return Uri.parse("android.resource://" + ctx.getPackageName() + "/raw/" + sound.substring(4));
+        if (sound.startsWith("uri:")) return Uri.parse(sound.substring(4));
+        return Settings.System.DEFAULT_NOTIFICATION_URI;
+    }
+
+    /**
+     * A channel's sound can't change after it is created, so each sound gets its own channel
+     * (id ends with a key of the sound); channels for sounds no longer used are removed.
+     */
+    static String ensureChannel(Context ctx, boolean popup, String sound) {
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
-        if (nm == null) return;
-        if (nm.getNotificationChannel(CH_POPUP) == null) {
-            NotificationChannel c = new NotificationChannel(CH_POPUP, "Вечірня перевірка — поверх екрана", NotificationManager.IMPORTANCE_HIGH);
-            c.setDescription("Нагадування заповнити день, що виринає поверх екрана");
-            c.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-            nm.createNotificationChannel(c);
-        }
-        if (nm.getNotificationChannel(CH_NORMAL) == null) {
-            NotificationChannel c = new NotificationChannel(CH_NORMAL, "Вечірня перевірка", NotificationManager.IMPORTANCE_DEFAULT);
+        String key = sound == null || sound.isEmpty() ? "default" : Integer.toHexString(sound.hashCode());
+        String id = (popup ? CH_POPUP : CH_NORMAL) + "_" + key;
+        if (nm == null) return id;
+        if (nm.getNotificationChannel(id) == null) {
+            NotificationChannel c = popup
+                    ? new NotificationChannel(id, "Вечірня перевірка — поверх екрана", NotificationManager.IMPORTANCE_HIGH)
+                    : new NotificationChannel(id, "Вечірня перевірка", NotificationManager.IMPORTANCE_DEFAULT);
             c.setDescription("Нагадування заповнити день");
+            c.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            Uri uri = soundUri(ctx, sound);
+            AudioAttributes attrs = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build();
+            c.setSound(uri, uri == null ? null : attrs);
+            c.enableVibration(true);
+            c.setVibrationPattern(new long[]{0, 220, 140, 220});
             nm.createNotificationChannel(c);
         }
+        for (NotificationChannel c : nm.getNotificationChannels()) {
+            String cid = c.getId();
+            if (cid.startsWith(CH_NORMAL) && !cid.endsWith("_" + key)) nm.deleteNotificationChannel(cid);
+        }
+        return id;
     }
 
     @SuppressLint("MissingPermission")
-    static void show(Context ctx, int id, String title, String body, String style) {
-        ensureChannels(ctx);
+    static void show(Context ctx, int id, String title, String body, String style, String sound) {
         boolean full = "fullscreen".equals(style);
         boolean popup = full || "headsup".equals(style);
+        String channel = ensureChannel(ctx, popup, sound);
         PendingIntent open = PendingIntent.getActivity(ctx, id, dueIntent(ctx), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, popup ? CH_POPUP : CH_NORMAL)
+        NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, channel)
                 .setSmallIcon(R.drawable.ic_stat_fitnes)
                 .setContentTitle(title == null ? "Fitnes" : title)
                 .setContentText(body)
@@ -123,7 +149,8 @@ public class ReminderReceiver extends BroadcastReceiver {
                 .putExtra("id", id)
                 .putExtra("title", it.optString("title", "Fitnes"))
                 .putExtra("body", it.optString("body", ""))
-                .putExtra("style", it.optString("style", "notification"));
+                .putExtra("style", it.optString("style", "notification"))
+                .putExtra("sound", it.optString("sound", "default"));
         return PendingIntent.getBroadcast(ctx, id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 

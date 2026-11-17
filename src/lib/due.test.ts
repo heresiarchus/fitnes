@@ -33,8 +33,14 @@ describe("Samsung Health step total", () => {
   it("sums Samsung records and ignores other apps", () => {
     expect(samsungSteps([rec("08:00", "09:00", 1200), rec("10:00", "11:00", 2300), rec("08:00", "12:00", 2054, "com.google.android.apps.fitness")])).toBe(3500);
   });
-  it("does not double count overlapping phone and watch records", () => {
-    expect(samsungSteps([rec("08:00", "09:00", 1200), rec("08:30", "09:00", 900), rec("10:00", "11:00", 100)])).toBe(1300);
+  it("takes the busier device where phone and watch overlap", () => {
+    // 08:00–08:30 only the phone (600 of its 1200), 08:30–09:00 the watch counted more (900 > 600).
+    expect(samsungSteps([rec("08:00", "09:00", 1200), rec("08:30", "09:00", 900), rec("10:00", "11:00", 100)])).toBe(1600);
+  });
+  it("keeps short watch records inside a long phone record", () => {
+    // A 2-hour phone record of 800 steps covers three busy 10-minute walks on the watch:
+    // 3 000 from the watch plus the phone's share of the other 90 minutes (600). The old merge gave 1 100.
+    expect(samsungSteps([rec("10:00", "12:00", 800), rec("10:00", "10:10", 900), rec("10:50", "11:00", 1100), rec("11:40", "11:50", 1000)])).toBe(3600);
   });
   it("returns null when Samsung Health wrote nothing", () => {
     expect(samsungSteps([rec("08:00", "09:00", 500, "com.google.android.apps.fitness")])).toBeNull();

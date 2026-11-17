@@ -42,7 +42,7 @@ export function MorePage({ days, settings }: { days: DaysMap; settings: Settings
   if (!raw || !AREAS.includes(raw as Area)) {
     return (
       <>
-        <header className="page-head"><Link className="back" to="/">{t("an.back")}</Link><h1>{t("more.allTitle")}</h1></header>
+        <header className="page-head"><h1>{t("more.allTitle")}</h1></header>
         <section className="block menu">
           {(["steps", "active", "weight", "sleep", "pulse", "bp", "feel"] as const).map((m) => (
             <Link key={m} className="menu-row" to={`/m/${m}`} data-c={m === "steps" ? "steps" : m === "active" ? "move" : m === "weight" ? "weight" : m === "sleep" ? "moon" : m === "feel" ? "habits" : "heart"}>
@@ -50,6 +50,20 @@ export function MorePage({ days, settings }: { days: DaysMap; settings: Settings
               <span className="menu-t"><b>{t(`an.m.${m}` as MessageKey)}</b></span><span className="menu-go" aria-hidden="true">›</span>
             </Link>
           ))}
+        </section>
+        <section className="block menu">
+          <Link className="menu-row" to="/history" data-c="table">
+            <span className="card-ic"><Icon name="table" /></span>
+            <span className="menu-t"><b>{t("more.calendar")}</b><small>{t("more.calendarSub")}</small></span><span className="menu-go" aria-hidden="true">›</span>
+          </Link>
+          <Link className="menu-row" to="/history?view=list" data-c="table">
+            <span className="card-ic"><Icon name="diary" /></span>
+            <span className="menu-t"><b>{t("more.list")}</b></span><span className="menu-go" aria-hidden="true">›</span>
+          </Link>
+          <Link className="menu-row" to="/reports" data-c="table">
+            <span className="card-ic"><Icon name="data" /></span>
+            <span className="menu-t"><b>{t("more.reports")}</b></span><span className="menu-go" aria-hidden="true">›</span>
+          </Link>
         </section>
         <section className="block menu">
           {AREAS.map((a) => (

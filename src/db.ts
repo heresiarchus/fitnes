@@ -9,7 +9,7 @@ import { connectionRecords, type Secret, stampLegacy } from "./cloud/plan";
 interface SettingsRow extends Settings { key: "main" }
 type MetaRow = { key: "sync"; value: SyncConfig } | { key: "sheets"; value: SheetsConfig } | { key: "health"; value: HealthState } | { key: "migrations"; value: string[] } | { key: "cloud"; value: CloudState };
 export interface CloudState { userId: string; lastServerAt: string | null; synced: Record<string, string>; lastAt?: string }
-export interface HealthState { on: boolean; history?: boolean; lastPullAt?: string; lastFullAt?: string; lastError?: string; lastCount?: number }
+export interface HealthState { on: boolean; history?: boolean; lastPullAt?: string; lastFullAt?: string; lastError?: string; lastCount?: number; /** End of Samsung's latest step record today: how fresh its data in Health Connect is. */ lastDataAt?: string }
 
 export const db = new Dexie("fitnes") as Dexie & {
   days: EntityTable<DayEntry, "date">;

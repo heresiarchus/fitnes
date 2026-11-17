@@ -80,27 +80,36 @@ export interface StepRecord { startDate: string; endDate: string; value: number;
 export const isSamsung = (source: string | undefined) => !!source && /shealth|samsung/i.test(source);
 
 /**
- * Samsung Health's own step total for one day. Overlapping records (the same
- * minutes counted by phone and watch) are merged keeping the larger count, so
- * nothing is counted twice. Returns null when Samsung Health wrote nothing that day.
+ * Samsung Health's own step total for one day. Phone and watch often record the same
+ * minutes; a long phone record can also cover several short watch records. So the day is
+ * cut at every record boundary and, in each slice, the device that counted more wins (a
+ * record's steps are spread evenly over its duration). Nothing is counted twice and
+ * nothing is lost when one long record overlaps many short ones.
+ * Returns null when Samsung Health wrote nothing that day.
  */
 export function samsungSteps(records: StepRecord[]): number | null {
   const own = records.filter((r) => isSamsung(r.sourceName) && r.value > 0)
-    .map((r) => ({ s: Date.parse(r.startDate), e: Date.parse(r.endDate), v: r.value }))
-    .sort((a, b) => a.s - b.s || b.e - a.e);
+    .map((r) => { const s = Date.parse(r.startDate); const e = Date.parse(r.endDate); return { s, e: e > s ? e : s + 60_000, v: r.value }; })
+    .sort((a, b) => a.s - b.s);
   if (!own.length) return null;
-  let total = 0;
-  let cur = own[0];
-  for (const r of own.slice(1)) {
-    if (r.s < cur.e) {
-      // Overlap: keep the cluster's larger count and extend it.
-      cur = { s: cur.s, e: Math.max(cur.e, r.e), v: Math.max(cur.v, r.v) };
-    } else {
-      total += cur.v;
-      cur = r;
-    }
+  const cuts = [...new Set(own.flatMap((r) => [r.s, r.e]))].sort((a, b) => a - b);
+  let total = 0, next = 0;
+  let active: typeof own = [];
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const a = cuts[i], b = cuts[i + 1];
+    while (next < own.length && own[next].s <= a) active.push(own[next++]);
+    active = active.filter((r) => r.e > a);
+    let best = 0;
+    for (const r of active) best = Math.max(best, (r.v * (Math.min(b, r.e) - Math.max(a, r.s))) / (r.e - r.s));
+    total += best;
   }
-  return Math.round(total + cur.v);
+  return Math.round(total);
+}
+
+/** End of the latest Samsung step record: how fresh Samsung Health's data in Health Connect is. */
+export function latestSamsung(records: StepRecord[]): string | null {
+  const ends = records.filter((r) => isSamsung(r.sourceName) && r.value > 0).map((r) => r.endDate).sort();
+  return ends.at(-1) ?? null;
 }
 
 export interface SleepDay { minutes: number; start: string; end: string; /** Daytime sleep on the same day, minutes. */ napMin: number }

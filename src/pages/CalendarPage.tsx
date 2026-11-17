@@ -19,10 +19,10 @@ const MODES: Mode[] = ["activity", "bp", "weight"];
 export function CalendarPage({ days, settings }: { days: DaysMap; settings: Settings }) {
   const { t, lang } = useI18n();
   const today = iso(new Date());
-  const [view, setView] = useState<"calendar" | "list">("calendar");
+  const [params] = useSearchParams();
+  const [view, setView] = useState<"calendar" | "list">(params.get("view") === "list" ? "list" : "calendar");
   const [mode, setMode] = useState<Mode>("activity");
   // Opened from a chart: ?month=YYYY-MM shows that month.
-  const [params] = useSearchParams();
   const startOffset = (() => {
     const m = /^(\d{4})-(\d{2})$/.exec(params.get("month") ?? "");
     if (!m) return 0;

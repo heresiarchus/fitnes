@@ -432,7 +432,8 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
                   </select>
                 </label>
               </div>
-              {ev.on && <ReminderStylePicker value={ev.style} every={ev.every ?? 5} onChange={(style) => setReminder("evening", { style })} />}
+              {ev.on && <ReminderStylePicker value={ev.style} every={ev.every ?? 5} onChange={(style) => setReminder("evening", { style })}
+                sound={ev.sound} soundTitle={ev.soundTitle} onSound={(sound, soundTitle) => setReminder("evening", { sound, soundTitle: soundTitle ?? ev.soundTitle })} />}
               <span className="sub-h">{t("remind.includeBp")}</span>
               {onOff(settings.reminders.bp.on, (v) => setReminder("bp", { on: v }), t("remind.includeBp"))}
               <span className="sub-h">{t("remind.review")}</span>
