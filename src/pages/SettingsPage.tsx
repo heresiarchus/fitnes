@@ -10,7 +10,7 @@ import { Link, useParams } from "react-router-dom";
 import { SettingsMenu } from "./SettingsMenu";
 import { deleteAllDays, liveDays, newId, saveDays, saveItems, setSheetsConfig, setSyncConfig, updateSettings, useHealthState, useSheetsConfig, useSyncConfig } from "../db";
 import { parseHistory } from "../lib/history";
-import { connectHealth, diagnoseHealth, disconnectHealth, HISTORY_DAYS, openHealthSettings, pullHealth, todaySteps, type TypeReport } from "../health";
+import { connectHealth, diagnoseHealth, disconnectHealth, HISTORY_DAYS, openHealthSettings, pullHealth, todayHealth, type TypeReport } from "../health";
 import { makePairCode, readPairCode } from "../sync/pair";
 import { GOAL_DEFS } from "../lib/goals";
 import { type NearbyDevice, scanNearby } from "../scale";
@@ -130,7 +130,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
   const [nearby, setNearby] = useState<NearbyDevice[] | null>(null);
   const [scanning, setScanning] = useState(false);
   const fmtKg = (kg: number) => (Math.round(kg * 10) / 10).toFixed(1).replace(".", settings.lang === "uk" ? "," : ".");
-  const [steps, setSteps] = useState<{ samsung: number | null; merged: number } | null>(null);
+  const [steps, setSteps] = useState<Awaited<ReturnType<typeof todayHealth>> | null>(null);
   async function hcConnect() {
     setHcMsg({ text: "…" });
     const r = await connectHealth();
@@ -282,7 +282,7 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
                 <>
                   <button type="button" className="primary" onClick={() => { setHcMsg({ text: "…" }); void pullHealth(30).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.pullNow")}</button>
                   <button type="button" onClick={() => { setHcMsg({ text: t("hc.historyLoading") }); void connectHealth().then(() => pullHealth(HISTORY_DAYS)).then((n) => setHcMsg({ text: t("hc.pulled", { n }), kind: "ok" })); }}>{t("hc.history")}</button>
-                  <button type="button" onClick={() => { setDiag(null); void diagnoseHealth().then(setDiag); void todaySteps().then(setSteps).catch(() => setSteps(null)); }}>{t("hc.diag")}</button>
+                  <button type="button" onClick={() => { setDiag(null); void diagnoseHealth().then(setDiag); void todayHealth().then(setSteps).catch(() => setSteps(null)); }}>{t("hc.diag")}</button>
                   <button type="button" onClick={() => void openHealthSettings()}>{t("hc.permissions")}</button>
                   <button type="button" className="danger" onClick={() => void disconnectHealth()}>{t("hc.disconnect")}</button>
                 </>
@@ -301,8 +301,16 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
                     </li>
                   ))}
                 </ul>
-                {steps && <p style={{ margin: 0, fontWeight: 650 }}>{t("hc.todaySteps", { sh: steps.samsung ?? "—", all: steps.merged })}</p>}
-                {steps && steps.samsung != null && steps.merged < steps.samsung && <p className="help-text">{t("hc.priority")}</p>}
+                {steps && (
+                  <ul className="diag-today">
+                    <li><b>{t("hc.t.steps", { v: steps.day?.steps ?? "—", all: steps.merged })}</b></li>
+                    {steps.day && Object.entries(steps.day.byDevice).map(([dev, n]) => <li key={dev}>{t("hc.t.device", { dev: t(`hc.dev.${dev}` as MessageKey) || dev, n })}</li>)}
+                    <li>{t("hc.t.active", { v: steps.day?.activeMin ?? "—" })}</li>
+                    <li>{t("hc.t.kcal", { a: Math.round(steps.kcal.active), tot: steps.kcal.total ?? "—", bmr: steps.kcal.bmr != null ? Math.round(steps.kcal.bmr) : "—", est: steps.kcal.estimate ?? "—" })}</li>
+                    <li className="status">{t("hc.t.compare")}</li>
+                  </ul>
+                )}
+                {steps && steps.day != null && steps.merged < steps.day.steps && <p className="help-text">{t("hc.priority")}</p>}
                 <p className="status" style={{ margin: 0 }}>{t("hc.diag.hint")}</p>
               </div>
             )}

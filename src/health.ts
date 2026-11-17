@@ -2,15 +2,15 @@ import { Health } from "@capgo/capacitor-health";
 import { db, getHealthState, getSettings, saveDays, saveItems, setHealthState, updateSettings } from "./db";
 import { makeT, type MessageKey } from "./i18n";
 import { addDays } from "./lib/date";
-import { dayRanges, type HcAggregate, type HcSample, type HcWorkout, latestSamsung, mapHealth, samsungSteps, type StepRecord, workoutItem } from "./lib/healthMap";
+import { activeFromTotal, dayRanges, type HcAggregate, type HcSample, type HcWorkout, isSamsung, type KcalRecord, latestSamsung, mapHealth, samsungDay, type StepDay, type StepRecord, workoutItem } from "./lib/healthMap";
 import { applySamsung } from "./lib/samsung";
 import type { DayEntry, DaysMap, Settings, SourceKey } from "./lib/types";
 import { SOURCE_KEYS } from "./lib/types";
 import { isNative } from "./native";
 
-type HType = "steps" | "workouts" | "weight" | "bloodPressure" | "sleep" | "restingHeartRate" | "heartRate" | "calories" | "distance";
+type HType = "steps" | "workouts" | "weight" | "bloodPressure" | "sleep" | "restingHeartRate" | "heartRate" | "calories" | "totalCalories" | "basalCalories" | "distance";
 const TYPES: Record<SourceKey, HType[]> = {
-  steps: ["steps", "distance"], exercise: ["workouts", "heartRate", "calories"], weight: ["weight"], bp: ["bloodPressure"], sleep: ["sleep", "restingHeartRate"],
+  steps: ["steps", "distance"], exercise: ["workouts", "heartRate", "calories", "totalCalories", "basalCalories"], weight: ["weight"], bp: ["bloodPressure"], sleep: ["sleep", "restingHeartRate"],
 };
 const ALL: HType[] = SOURCE_KEYS.flatMap((k) => TYPES[k]);
 /** Regular pulls look a week back; a full pull covers what Health Connect allows without history access. */
@@ -67,33 +67,64 @@ async function readDailyTotals(dataType: "calories" | "distance", days: number):
 }
 
 /**
- * Step totals per calendar day, midnight to midnight. Samsung Health's own records
- * are used when present, so another app higher in Health Connect's priority list
- * (e.g. the phone's own counter) can't replace the watch's count. The merged total
- * is the fallback for days Samsung Health wrote nothing.
+ * Step totals and active minutes per calendar day, midnight to midnight, from Samsung
+ * Health's own records (phone and watch merged minute by minute), so another app higher in
+ * Health Connect's priority list can't replace the watch's count. Health Connect's merged
+ * total is the fallback for days Samsung Health wrote nothing.
  */
-async function readDailySteps(days: number): Promise<HcAggregate[]> {
+async function readDailySteps(days: number): Promise<{ steps: HcAggregate[]; activeMin: HcAggregate[] }> {
   const ranges = dayRanges(new Date(), days);
-  const out: HcAggregate[] = [];
+  const steps: HcAggregate[] = [], activeMin: HcAggregate[] = [];
   for (let i = 0; i < ranges.length; i += 4) {
     const batch = ranges.slice(i, i + 4);
     const res = await Promise.all(batch.map(async (r) => {
       const recs = (await Health.readSamples({ dataType: "steps", startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as StepRecord[];
-      return samsungSteps(recs) ?? (await aggregateDay(r.start, r.end));
+      return samsungDay(recs) ?? { steps: await aggregateDay(r.start, r.end), activeMin: 0, byDevice: {} };
     }));
-    res.forEach((v, j) => out.push({ startDate: batch[j].start.toISOString(), value: v }));
+    res.forEach((v, j) => {
+      steps.push({ startDate: batch[j].start.toISOString(), value: v.steps });
+      activeMin.push({ startDate: batch[j].start.toISOString(), value: v.activeMin });
+    });
+  }
+  return { steps, activeMin };
+}
+
+/** Samsung's latest BMR (kcal a day), when it has one. */
+async function latestBmr(): Promise<number | null> {
+  const s = (await Health.readSamples({ dataType: "basalCalories", ...range(365), limit: 200 })).samples as { value: number; startDate: string; sourceName?: string }[];
+  const own = s.filter((x) => x.value > 0).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  return (own.filter((x) => isSamsung(x.sourceName)).at(-1) ?? own.at(-1))?.value ?? null;
+}
+
+/** Active calories for days where Samsung wrote none: its total calories minus the resting part. */
+async function estimateActiveKcal(days: number, have: HcAggregate[] | undefined, bmr: number | null): Promise<HcAggregate[]> {
+  const got = new Map((have ?? []).map((a) => [a.startDate.slice(0, 10), a.value]));
+  const out: HcAggregate[] = [];
+  for (const r of dayRanges(new Date(), days)) {
+    if ((got.get(r.start.toISOString().slice(0, 10)) ?? 0) > 0) continue;
+    const recs = (await Health.readSamples({ dataType: "totalCalories", startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as KcalRecord[];
+    const v = activeFromTotal(recs, bmr, r.start);
+    if (v != null && v > 0) out.push({ startDate: r.start.toISOString(), value: v });
   }
   return out;
 }
 
-/** Today's steps both ways, to compare with the watch. */
-export async function todaySteps(): Promise<{ samsung: number | null; merged: number }> {
+/** Today in detail, for the diagnostics: steps per device, active minutes, calories every way. */
+export async function todayHealth(): Promise<{ day: StepDay | null; merged: number; kcal: { active: number; total: number | null; bmr: number | null; estimate: number | null } }> {
   const r = dayRanges(new Date(), 1)[0];
   const recs = (await Health.readSamples({ dataType: "steps", startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as StepRecord[];
-  return { samsung: samsungSteps(recs), merged: await aggregateDay(r.start, r.end) };
+  const safe = async <T,>(f: () => Promise<T>, d: T) => { try { return await f(); } catch { return d; } };
+  const active = await safe(() => aggregateDay(r.start, r.end, "calories"), 0);
+  const totalRecs = await safe(async () => (await Health.readSamples({ dataType: "totalCalories", startDate: r.start.toISOString(), endDate: r.end.toISOString(), limit: 5000 })).samples as KcalRecord[], [] as KcalRecord[]);
+  const bmr = await safe(latestBmr, null);
+  const own = totalRecs.filter((x) => isSamsung(x.sourceName));
+  return {
+    day: samsungDay(recs), merged: await aggregateDay(r.start, r.end),
+    kcal: { active, total: own.length ? Math.round(own.reduce((a, b) => a + b.value, 0)) : null, bmr, estimate: activeFromTotal(totalRecs, bmr, r.start) },
+  };
 }
 
-async function readType(type: HType, days: number): Promise<{ samples?: HcSample[]; steps?: HcAggregate[]; workouts?: HcWorkout[]; raw: { startDate: string; sourceName?: string }[] }> {
+async function readType(type: HType, days: number): Promise<{ samples?: HcSample[]; steps?: HcAggregate[]; activeMin?: HcAggregate[]; workouts?: HcWorkout[]; raw: { startDate: string; sourceName?: string }[] }> {
   const r = range(days);
   if (type === "workouts") {
     const w = (await Health.queryWorkouts({ ...r, limit: 500, ascending: true })).workouts;
@@ -106,7 +137,7 @@ async function readType(type: HType, days: number): Promise<{ samples?: HcSample
   if (type === "steps") {
     // Health Connect removes phone/watch duplicates itself when aggregating.
     const agg = await readDailySteps(days);
-    return { steps: agg, raw: agg.filter((a) => a.value > 0) };
+    return { steps: agg.steps, activeMin: agg.activeMin, raw: agg.steps.filter((a) => a.value > 0) };
   }
   const s = (await Health.readSamples({ dataType: type, ...r, limit: 2000, ascending: true })).samples;
   return { samples: s as HcSample[], raw: s };
@@ -163,10 +194,11 @@ async function run(daysArg?: number): Promise<number> {
     const got: Parameters<typeof mapHealth>[0] = {};
     // Each type separately: one failing type must not block the others.
     for (const type of ALL) {
-      if (!want.has(type) || !granted.has(type) || type === "heartRate") continue; // pulse is read per workout
+      // Pulse is read per workout; total and resting calories only feed the active-calorie estimate below.
+      if (!want.has(type) || !granted.has(type) || type === "heartRate" || type === "totalCalories" || type === "basalCalories") continue;
       try {
         const r = await readType(type, span);
-        if (type === "steps") got.steps = r.steps;
+        if (type === "steps") { got.steps = r.steps; got.activeMin = r.activeMin; }
         else if (type === "workouts") got.workouts = r.workouts;
         else if (type === "calories") got.activeKcal = r.steps;
         else if (type === "distance") got.distance = r.steps;
@@ -176,6 +208,16 @@ async function run(daysArg?: number): Promise<number> {
         else got.restingHr = r.samples;
       } catch (e) {
         errors.push(`${type}: ${(e as Error).message || "error"}`);
+      }
+    }
+    // Samsung often writes total calories but no active ones: rebuild active from the total.
+    if (want.has("calories") && granted.has("totalCalories")) {
+      try {
+        const bmr = granted.has("basalCalories") ? await latestBmr() : null;
+        const est = await estimateActiveKcal(span, got.activeKcal, bmr);
+        if (est.length) got.activeKcal = [...(got.activeKcal ?? []).filter((a) => a.value > 0), ...est];
+      } catch (e) {
+        errors.push(`totalCalories: ${(e as Error).message || "error"}`);
       }
     }
     const days: DaysMap = {};

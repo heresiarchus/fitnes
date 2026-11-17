@@ -16,7 +16,7 @@ export function goalValue(metric: GoalMetric, d: DayEntry | undefined): number |
   switch (metric) {
     case "steps": return d.steps ?? null;
     case "activeKcal": return d.activeKcal ?? null;
-    case "activeMin": return d.walkMin != null || d.cardioMin != null ? (d.walkMin ?? 0) + (d.cardioMin ?? 0) : null;
+    case "activeMin": return activeMinutes(d);
     case "distanceKm": return d.distanceKm ?? null;
     case "sleepH": return d.sleepMin != null ? Math.round((d.sleepMin / 60) * 10) / 10 : null;
   }
@@ -40,3 +40,11 @@ export const DEFAULT_GOALS: Settings["goals"] = [
   { metric: "distanceKm", target: 5, on: false },
   { metric: "sleepH", target: 7, on: false },
 ];
+
+/** Active minutes: the watch's (rebuilt from steps) or logged walking + cardio, whichever is more. */
+export function activeMinutes(d: DayEntry | undefined): number | null {
+  if (!d) return null;
+  const logged = d.walkMin != null || d.cardioMin != null ? (d.walkMin ?? 0) + (d.cardioMin ?? 0) : null;
+  if (d.activeMin == null) return logged;
+  return Math.max(d.activeMin, logged ?? 0);
+}

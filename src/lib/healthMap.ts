@@ -21,7 +21,7 @@ const hm = (d: Date) => d.toTimeString().slice(0, 5);
  */
 export function mapHealth(input: {
   steps?: HcAggregate[]; workouts?: HcWorkout[]; weight?: HcSample[]; bp?: HcSample[]; sleep?: HcSample[]; restingHr?: HcSample[];
-  activeKcal?: HcAggregate[]; distance?: HcAggregate[];
+  activeKcal?: HcAggregate[]; distance?: HcAggregate[]; activeMin?: HcAggregate[];
 }): SamsungData {
   const out = emptySamsung();
   out.sleep = {};
@@ -52,6 +52,8 @@ export function mapHealth(input: {
   Object.assign(out.sleep, sleepByDay(input.sleep ?? []));
   out.activeKcal = {};
   out.distanceKm = {};
+  out.activeMin = {};
+  for (const s of input.activeMin ?? []) if (s.value > 0) out.activeMin[iso(new Date(s.startDate))] = Math.round(s.value);
   for (const s of input.activeKcal ?? []) if (s.value > 0) out.activeKcal[iso(new Date(s.startDate))] = Math.round(s.value);
   for (const s of input.distance ?? []) if (s.value > 0) out.distanceKm[iso(new Date(s.startDate))] = Math.round(s.value / 10) / 100;
   for (const s of input.restingHr ?? []) {
@@ -75,36 +77,93 @@ export function dayRanges(now: Date, days: number): { date: string; start: Date;
   return out;
 }
 
-export interface StepRecord { startDate: string; endDate: string; value: number; sourceName?: string }
+export interface StepRecord { startDate: string; endDate: string; value: number; sourceName?: string; deviceType?: string }
 
 export const isSamsung = (source: string | undefined) => !!source && /shealth|samsung/i.test(source);
 
-/**
- * Samsung Health's own step total for one day. Phone and watch often record the same
- * minutes; a long phone record can also cover several short watch records. So the day is
- * cut at every record boundary and, in each slice, the device that counted more wins (a
- * record's steps are spread evenly over its duration). Nothing is counted twice and
- * nothing is lost when one long record overlaps many short ones.
- * Returns null when Samsung Health wrote nothing that day.
- */
-export function samsungSteps(records: StepRecord[]): number | null {
-  const own = records.filter((r) => isSamsung(r.sourceName) && r.value > 0)
-    .map((r) => { const s = Date.parse(r.startDate); const e = Date.parse(r.endDate); return { s, e: e > s ? e : s + 60_000, v: r.value }; })
-    .sort((a, b) => a.s - b.s);
-  if (!own.length) return null;
-  const cuts = [...new Set(own.flatMap((r) => [r.s, r.e]))].sort((a, b) => a - b);
-  let total = 0, next = 0;
-  let active: typeof own = [];
-  for (let i = 0; i < cuts.length - 1; i++) {
-    const a = cuts[i], b = cuts[i + 1];
-    while (next < own.length && own[next].s <= a) active.push(own[next++]);
-    active = active.filter((r) => r.e > a);
-    let best = 0;
-    for (const r of active) best = Math.max(best, (r.v * (Math.min(b, r.e) - Math.max(a, r.s))) / (r.e - r.s));
-    total += best;
-  }
-  return Math.round(total);
+/** Steps per minute from which a minute counts as active (a slow walk is ~60–90, brisk ≥ 100). */
+export const ACTIVE_SPM = 60;
+
+export interface StepDay {
+  steps: number;
+  /** Minutes with at least ACTIVE_SPM steps (Health Connect has no "active time"; this rebuilds it from steps). */
+  activeMin: number;
+  /** Steps per recording device, for the diagnostics. */
+  byDevice: Record<string, number>;
 }
+
+/**
+ * Samsung Health's step total for one day, the way Samsung itself counts it: phone and
+ * watch each count on their own, and for every minute the device that counted more wins.
+ * Each record's steps are spread evenly over its minutes, so records that are shifted by a
+ * few seconds between devices (which made slices count twice before) land in the same minute.
+ * Exact duplicate records are dropped. Returns null when Samsung Health wrote nothing that day.
+ */
+export function samsungDay(records: StepRecord[]): StepDay | null {
+  const own = records.filter((r) => isSamsung(r.sourceName) && r.value > 0);
+  if (!own.length) return null;
+  const seen = new Set<string>();
+  const perDevice = new Map<string, Map<number, number>>();
+  const byDevice: Record<string, number> = {};
+  for (const r of own) {
+    const dev = r.deviceType ?? "unknown";
+    const key = `${dev}|${r.startDate}|${r.endDate}|${r.value}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    byDevice[dev] = (byDevice[dev] ?? 0) + r.value;
+    const s = Date.parse(r.startDate), e0 = Date.parse(r.endDate), e = e0 > s ? e0 : s + 60_000;
+    const minutes = perDevice.get(dev) ?? new Map<number, number>();
+    for (let m = Math.floor(s / 60_000); m * 60_000 < e; m++) {
+      const overlap = Math.min(e, (m + 1) * 60_000) - Math.max(s, m * 60_000);
+      if (overlap > 0) minutes.set(m, (minutes.get(m) ?? 0) + (r.value * overlap) / (e - s));
+    }
+    perDevice.set(dev, minutes);
+  }
+  const best = new Map<number, number>();
+  perDevice.forEach((minutes) => minutes.forEach((v, m) => best.set(m, Math.max(best.get(m) ?? 0, v))));
+  let steps = 0, activeMin = 0;
+  best.forEach((v) => { steps += v; if (v >= ACTIVE_SPM) activeMin++; });
+  Object.keys(byDevice).forEach((k) => (byDevice[k] = Math.round(byDevice[k])));
+  return { steps: Math.round(steps), activeMin, byDevice };
+}
+
+export interface KcalRecord { startDate: string; endDate: string; value: number; sourceName?: string }
+
+/**
+ * Active calories rebuilt from Samsung's total calories, for when Samsung writes no active
+ * ones: the total minus the resting part. The resting rate is Samsung's BMR when it has
+ * one, else the day's own night rate (01:00–05:00, from short records only), which is
+ * mostly resting. Null when neither is available.
+ */
+export function activeFromTotal(records: KcalRecord[], bmrPerDay: number | null, dayStart: Date): number | null {
+  const seen = new Set<string>();
+  const own = records.filter((r) => {
+    const k = `${r.startDate}|${r.endDate}|${r.value}`;
+    if (!isSamsung(r.sourceName) || r.value <= 0 || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).map((r) => ({ s: Date.parse(r.startDate), e: Math.max(Date.parse(r.endDate), Date.parse(r.startDate) + 60_000), v: r.value }));
+  if (!own.length) return null;
+  const t0 = dayStart.getTime(), dayEnd = t0 + 1440 * 60_000;
+  const total = own.reduce((a, r) => a + r.v, 0);
+  const lastEnd = Math.min(dayEnd, Math.max(...own.map((r) => r.e)));
+  let perMin = bmrPerDay && bmrPerDay > 0 ? bmrPerDay / 1440 : null;
+  if (perMin == null) {
+    const ws = t0 + 60 * 60_000, we = t0 + 300 * 60_000;
+    let kcal = 0, covered = 0;
+    for (const r of own) {
+      if (r.e - r.s > 60 * 60_000) continue; // a long record says nothing about the night alone
+      const o = Math.min(we, r.e) - Math.max(ws, r.s);
+      if (o > 0) { kcal += (r.v * o) / (r.e - r.s); covered += o / 60_000; }
+    }
+    if (covered >= 120) perMin = kcal / covered;
+  }
+  if (perMin == null) return null;
+  return Math.max(0, Math.round(total - perMin * ((lastEnd - t0) / 60_000)));
+}
+
+/** The day's step total (see samsungDay). */
+export const samsungSteps = (records: StepRecord[]): number | null => samsungDay(records)?.steps ?? null;
 
 /** End of the latest Samsung step record: how fresh Samsung Health's data in Health Connect is. */
 export function latestSamsung(records: StepRecord[]): string | null {

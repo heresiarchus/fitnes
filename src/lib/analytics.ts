@@ -7,6 +7,7 @@
  *   correlation is clearly away from zero (|t| ≥ 2); a link is never presented as a cause.
  */
 import { addDays, iso, mondayOf, parseIso } from "./date";
+import { activeMinutes } from "./goals";
 import { bpSummary, morningWeight } from "./stats";
 import type { DayEntry, DaysMap, WorkoutItem } from "./types";
 
@@ -18,7 +19,7 @@ const bp = (d: DayEntry | undefined) => { const s = bpSummary(d); return s.morni
 /** One number per day for each metric; null when the day has no such data. */
 export const VALUE: Record<MetricId, (d: DayEntry | undefined) => number | null> = {
   steps: (d) => d?.steps ?? null,
-  active: (d) => (d?.walkMin != null || d?.cardioMin != null ? (d.walkMin ?? 0) + (d.cardioMin ?? 0) : null),
+  active: (d) => activeMinutes(d),
   kcal: (d) => d?.activeKcal ?? null,
   distance: (d) => d?.distanceKm ?? null,
   weight: (d) => morningWeight(d),
