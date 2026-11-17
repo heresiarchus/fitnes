@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Head } from "../components/Head";
 import { PeriodNav } from "../components/PeriodNav";
 import { Stepper } from "../components/Stepper";
@@ -21,8 +21,16 @@ export function CalendarPage({ days, settings }: { days: DaysMap; settings: Sett
   const today = iso(new Date());
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [mode, setMode] = useState<Mode>("activity");
-  const [offset, setOffset] = useState(0);
-  const [selected, setSelected] = useState(today);
+  // Opened from a chart: ?month=YYYY-MM shows that month.
+  const [params] = useSearchParams();
+  const startOffset = (() => {
+    const m = /^(\d{4})-(\d{2})$/.exec(params.get("month") ?? "");
+    if (!m) return 0;
+    const now = new Date();
+    return (Number(m[1]) - now.getFullYear()) * 12 + (Number(m[2]) - 1 - now.getMonth());
+  })();
+  const [offset, setOffset] = useState(startOffset);
+  const [selected, setSelected] = useState(() => (startOffset ? monthDates(startOffset)[0] : today));
   const dates = monthDates(offset);
   const lead = (parseIso(dates[0]).getDay() + 6) % 7;
   const mark = settings.bpMark;

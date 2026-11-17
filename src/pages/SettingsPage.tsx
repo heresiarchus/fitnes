@@ -551,6 +551,13 @@ export function SettingsPage({ days, settings }: { days: DaysMap; settings: Sett
       {cat === "data" && (
         <>
       <section className="block">
+        <label className="field"><span>{t("ht.label")}</span>
+          <input type="number" inputMode="numeric" min={120} max={230} defaultValue={settings.heightCm ?? ""} placeholder="180"
+            onBlur={(e) => { const v = Number(e.target.value); void updateSettings({ heightCm: v >= 120 && v <= 230 ? v : null, heightAsked: true }); }} />
+        </label>
+        <p className="status" style={{ margin: 0 }}>{t("ht.why")}</p>
+      </section>
+      <section className="block">
         <span className="status num">{t("settings.count", { n: count })}</span>
         <div className="actions">
           <button type="button" onClick={exportJson}>{t("settings.backup")}</button>

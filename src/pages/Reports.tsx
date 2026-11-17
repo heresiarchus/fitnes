@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { WeeklySummary } from "../components/WeeklySummary";
+import { DoctorReport } from "../components/DoctorReport";
 import { Head } from "../components/Head";
 import { HistoryCharts } from "../components/HistoryCharts";
 import { PeriodNav } from "../components/PeriodNav";
@@ -85,6 +87,8 @@ export function Reports({ days, settings }: { days: DaysMap; settings: Settings 
 
       </>)}
 
+      <WeeklySummary days={days} settings={settings} always />
+      <DoctorReport days={days} settings={settings} />
       <section className="block no-print">
         <Head title={t("reports.export")} />
         <div className="actions">

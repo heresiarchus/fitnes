@@ -101,6 +101,16 @@ export interface Settings {
   hideWeight: boolean;
   /** Daily reminders (shown by the Android app). */
   reminders: Reminders;
+  /** Target weight for the forecast on the weight screen. */
+  weightGoal?: number | null;
+  /** Height for BMI and stride length; asked once, then it travels with the account. */
+  heightCm?: number | null;
+  /** The one-time height question was answered or put off. */
+  heightAsked?: boolean;
+  /** Weekly active-minutes goal (WHO: 150–300). */
+  activeWeekGoal?: number;
+  /** Monday summary already closed for this week (Monday's date). */
+  summarySeen?: string;
   updatedAt: string;
 }
 
